@@ -1,0 +1,37 @@
+typeattribute vendor_init data_between_core_and_vendor_violators;
+
+allow vendor_init {
+  camera_data_file
+  dhcp_data_file
+  etsd_data_file
+  media_rw_data_file
+  preloads_data_file
+  system_data_file
+  vendor_time_data_file
+  wifi_data_file
+  wpa_socket
+}:dir { create search getattr open read setattr ioctl write add_name remove_name rmdir relabelfrom };
+
+# Allow init to run restorecon on the TA block device
+allow vendor_init block_device:lnk_file relabelfrom;
+allow vendor_init tad_block_device:blk_file setattr;
+allow vendor_init tad_block_device:lnk_file relabelto;
+
+# Allow vendor_init to relabel unlabeled files and directories
+allow vendor_init unlabeled:{ dir file } { getattr relabelfrom };
+
+# Allow vendor_init to create /mnt/qns
+allow vendor_init tmpfs:dir { write add_name relabelfrom };
+
+# Allow vendor_init to relabel unlabeled files and directories
+allow vendor_init unlabeled:{ dir file } { getattr relabelfrom };
+
+# Allow vendor init to set camera_prop
+set_prop(vendor_init, camera_prop)
+
+allow vendor_init {
+  proc_dirty
+  proc
+}:file w_file_perms;
+
+allow vendor_init default_prop:file read;

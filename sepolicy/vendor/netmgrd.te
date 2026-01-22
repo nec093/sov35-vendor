@@ -1,0 +1,5 @@
+# Allow netmgrd to set vendor_net_radio_prop
+set_prop(netmgrd, vendor_net_radio_prop)
+
+allow netmgrd sysfs:file r_file_perms;
+allow netmgrd sysfs:dir r_dir_perms;

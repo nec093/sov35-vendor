@@ -1,0 +1,4 @@
+allow ims diag_device:chr_file { read write };
+allow ims diag_device:chr_file open;
+
+allow ims sysfs:file r_file_perms;

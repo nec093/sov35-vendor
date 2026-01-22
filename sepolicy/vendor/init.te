@@ -1,0 +1,18 @@
+# Allow init to read files in /lta-label
+r_dir_file(init, lta_label)
+# Allow init to mount /dsp with adsprpcd_file context
+allow init adsprpcd_file:filesystem { mount relabelfrom relabelto };
+
+# Allow init to mount on qns_file
+allow init { qns_file }:dir mounton;
+
+allow init {
+   sysfs_leds
+ }:file setattr;
+
+# Allow init to create tad socket
+allow init tad_socket:sock_file create_file_perms;
+
+allow init firmware_file:filesystem getattr;
+
+allow init sysfs:file setattr;
