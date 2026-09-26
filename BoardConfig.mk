@@ -30,6 +30,9 @@ TARGET_OTA_ASSERT_DEVICE := keyaki,keyaki_dsds,G8231,G8232
 # fastboot, so use it as a prebuilt instead of building it with the 4.4-era flow.
 TARGET_KERNEL_CONFIG := aosp_tone_keyaki_defconfig
 TARGET_FORCE_PREBUILT_KERNEL := true
+# The vidc/audio UAPI of the port is the CAF 4.9 one: build the media HAL
+# in its kernel-4.9 mode.
+TARGET_KERNEL_VERSION := 4.9
 TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/Image.gz-dtb
 
 # Partitions
