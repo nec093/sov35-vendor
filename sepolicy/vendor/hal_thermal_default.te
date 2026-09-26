@@ -1,0 +1,7 @@
+# thermal 2.0 HAL: reads thermal zones, soc_id, and listens for thermal uevents
+allow hal_thermal_default sysfs_thermal:dir r_dir_perms;
+allow hal_thermal_default sysfs_thermal:file rw_file_perms;
+allow hal_thermal_default sysfs_thermal:lnk_file r_file_perms;
+allow hal_thermal_default sysfs_socinfo:file r_file_perms;
+allow hal_thermal_default sysfs_socinfo:dir r_dir_perms;
+allow hal_thermal_default self:netlink_kobject_uevent_socket create_socket_perms_no_ioctl;

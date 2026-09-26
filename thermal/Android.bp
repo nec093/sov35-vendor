@@ -1,0 +1,36 @@
+// Copy of hardware/qcom-caf/thermal with an msm8996 (tone, 5.4 kernel) sensor table.
+cc_binary {
+	name: "android.hardware.thermal@2.0-service.sony_tone",
+	defaults: [
+		"hidl_defaults",
+	],
+	vendor: true,
+	relative_install_path: "hw",
+	init_rc: ["android.hardware.thermal@2.0-service.sony_tone.rc"],
+	vintf_fragments: ["android.hardware.thermal@2.0-service.sony_tone.xml"],
+	srcs: [
+		"service.cpp",
+		"thermal.cpp",
+		"thermalConfig.cpp",
+		"thermalCommon.cpp",
+		"thermalUtils.cpp",
+		"thermalMonitor.cpp",
+	],
+	shared_libs: [
+		"libbase",
+		"libcutils",
+		"libhidlbase",
+		"libutils",
+		"liblog",
+		"android.hardware.thermal@1.0",
+		"android.hardware.thermal@2.0",
+	],
+	header_libs: [
+		"liblog_headers",
+		"libcutils_headers"
+	],
+	cflags: [
+		"-Wno-unused-parameter",
+		"-Wno-unused-variable",
+	],
+}

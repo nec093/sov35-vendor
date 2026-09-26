@@ -283,7 +283,7 @@ PRODUCT_PACKAGES += \
 
 # Lights
 PRODUCT_PACKAGES += \
-    android.hardware.light@2.0-service.sony_tone
+    android.hardware.lights-service.sony_tone
 
 # LiveDisplay
 #PRODUCT_PACKAGES += \
@@ -420,8 +420,7 @@ PRODUCT_PACKAGES += \
 # Thermal
 PRODUCT_PACKAGES += \
     thermal.msm8996 \
-    android.hardware.thermal@1.0-impl \
-    android.hardware.thermal@1.0-service
+    android.hardware.thermal@2.0-service.sony_tone
 
 # Thermanager
 PRODUCT_PACKAGES += \
@@ -447,8 +446,7 @@ PRODUCT_COPY_FILES += \
 
 # Vibrator
 PRODUCT_PACKAGES += \
-    android.hardware.vibrator@1.0-impl \
-    android.hardware.vibrator@1.0-service
+    vendor.qti.hardware.vibrator.service
 
 # WiFi
 PRODUCT_PACKAGES += \
