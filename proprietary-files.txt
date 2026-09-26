@@ -1,0 +1,24 @@
+# Bluetooth
+etc/firmware/BCM4349B1.hcd:vendor/firmware/BCM4349B1.hcd
+etc/firmware/BCM4359C0.hcd:vendor/firmware/BCM4359C0.hcd
+
+# Fingerprint
+etc/firmware/tzfingerprint.b00:vendor/etc/firmware/tzfingerprint.b00
+etc/firmware/tzfingerprint.b01:vendor/etc/firmware/tzfingerprint.b01
+etc/firmware/tzfingerprint.b02:vendor/etc/firmware/tzfingerprint.b02
+etc/firmware/tzfingerprint.b03:vendor/etc/firmware/tzfingerprint.b03
+etc/firmware/tzfingerprint.b04:vendor/etc/firmware/tzfingerprint.b04
+etc/firmware/tzfingerprint.b05:vendor/etc/firmware/tzfingerprint.b05
+etc/firmware/tzfingerprint.b06:vendor/etc/firmware/tzfingerprint.b06
+etc/firmware/tzfingerprint.mdt:vendor/etc/firmware/tzfingerprint.mdt
+
+# NFC firmware
+lib64/hw/libpn547_fw.so:vendor/lib/libpn547_fw.so
+
+# Sensors
+vendor/etc/sensors/sensor_def_qcomdev.conf
+
+# Touchscreen firmware
+etc/firmware/touch_module_id_0xb0.img:vendor/etc/firmware/touch_module_id_0xb0.img
+etc/firmware/touch_module_id_0xb1.img:vendor/etc/firmware/touch_module_id_0xb1.img
+etc/firmware/touch_module_id_0xb2.img:vendor/etc/firmware/touch_module_id_0xb2.img
