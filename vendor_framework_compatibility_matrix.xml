@@ -1,0 +1,14 @@
+<!--
+    Vendor HALs the framework does not know about. The QTI location
+    stack registers IGnss@1.0 under an extra "gnss_vendor" name.
+-->
+<compatibility-matrix version="2.0" type="framework">
+    <hal format="hidl" optional="true">
+        <name>android.hardware.gnss</name>
+        <version>1.0</version>
+        <interface>
+            <name>IGnss</name>
+            <instance>gnss_vendor</instance>
+        </interface>
+    </hal>
+</compatibility-matrix>
