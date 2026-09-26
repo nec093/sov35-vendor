@@ -24,7 +24,13 @@ DEVICE_PATH := device/sony/keyaki
 TARGET_OTA_ASSERT_DEVICE := keyaki,keyaki_dsds,G8231,G8232
 
 # Kernel
-TARGET_KERNEL_CONFIG := tone_keyaki_defconfig
+# Kernel: our Linux 5.4 port (github.com/nec093/5.4-kernel-xperia-xzs-keyaki, port-5.4).
+# The vendor image only needs its UAPI headers, which the build generates from
+# TARGET_KERNEL_SOURCE; the image itself is built outside and booted with
+# fastboot, so use it as a prebuilt instead of building it with the 4.4-era flow.
+TARGET_KERNEL_CONFIG := aosp_tone_keyaki_defconfig
+TARGET_FORCE_PREBUILT_KERNEL := true
+TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/Image.gz-dtb
 
 # Partitions
 BOARD_CACHEIMAGE_PARTITION_SIZE := 268435456
