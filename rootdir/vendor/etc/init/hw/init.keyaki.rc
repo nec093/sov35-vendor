@@ -1,0 +1,4 @@
+# The tone vendor is written for androidboot.hardware=qcom, but the keyaki
+# bootloader cmdline (stock and 5.4 boot images) says keyaki, and init only
+# imports /vendor/etc/init/hw/init.${ro.hardware}.rc.
+import /vendor/etc/init/hw/init.qcom.rc

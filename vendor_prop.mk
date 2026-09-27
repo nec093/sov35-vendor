@@ -14,6 +14,10 @@
 # limitations under the License.
 #
 
+# Camera (the HAL module is camera.qcom; ro.hardware is keyaki)
+PRODUCT_PROPERTY_OVERRIDES += \
+    ro.hardware.camera=qcom
+
 # Fingerprint
 PRODUCT_PROPERTY_OVERRIDES += \
     persist.qfp=false \

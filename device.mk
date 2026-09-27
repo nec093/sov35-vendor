@@ -48,6 +48,11 @@ PRODUCT_PACKAGES += \
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/idc/clearpad.idc:$(TARGET_COPY_OUT_VENDOR)/usr/idc/clearpad.idc
 
+# ro.hardware is keyaki, not qcom: init and fs_mgr look for the keyaki names
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/rootdir/vendor/etc/init/hw/init.keyaki.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/hw/init.keyaki.rc \
+    device/sony/tone-common/rootdir/etc/fstab.qcom:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.keyaki
+
 # Wi-Fi firmware for the mainline brcmfmac driver of the 5.4 kernel
 # (same BCM4359 firmware and NVRAM the bcmdhd paths carry, under the names brcmfmac asks for)
 PRODUCT_COPY_FILES += \
