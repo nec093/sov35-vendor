@@ -62,6 +62,3 @@ PRODUCT_COPY_FILES += \
 
 # NFC
 
-# Thermal Configuration
-PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/rootdir/vendor/etc/thermanager.xml:$(TARGET_COPY_OUT_VENDOR)/etc/thermanager.xml
