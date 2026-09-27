@@ -419,10 +419,6 @@ PRODUCT_PACKAGES += \
     thermal.msm8996 \
     android.hardware.thermal@2.0-service.sony_tone
 
-# Thermanager
-PRODUCT_PACKAGES += \
-    thermanager
-
 # Trust HAL
 PRODUCT_PACKAGES += \
     vendor.lineage.trust@1.0-service
