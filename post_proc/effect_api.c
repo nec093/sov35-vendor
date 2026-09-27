@@ -59,6 +59,13 @@
 #include <log/log.h>
 #include <tinyalsa/asoundlib.h>
 #include <sound/audio_effects.h>
+
+/* msm-5.4 audio-kernel headers prefix the config commands */
+#if !defined(CONFIG_SET) && defined(AUDIO_EFFECTS_CONFIG_SET)
+#define CONFIG_CACHE AUDIO_EFFECTS_CONFIG_CACHE
+#define CONFIG_SET   AUDIO_EFFECTS_CONFIG_SET
+#define CONFIG_GET   AUDIO_EFFECTS_CONFIG_GET
+#endif
 #include <sound/devdep_params.h>
 #include <linux/msm_audio.h>
 #include <errno.h>

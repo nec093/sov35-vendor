@@ -750,6 +750,9 @@ uint32_t hal_format_to_pcm(audio_format_t hal_format);
 void audio_extn_utils_update_direct_pcm_fragment_size(struct stream_out *out);
 size_t audio_extn_utils_convert_format_24_8_to_8_24(void *buf, size_t bytes);
 int get_snd_codec_id(audio_format_t format);
+#ifdef AUDIO_COMPR_GENERIC_DEC
+int get_snd_codec_generic_format(audio_format_t format);
+#endif
 
 #ifndef KPI_OPTIMIZE_ENABLED
 #define audio_extn_perf_lock_init() (0)

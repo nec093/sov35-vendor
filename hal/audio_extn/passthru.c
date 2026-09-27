@@ -249,7 +249,7 @@ bool audio_extn_passthru_should_drop_data(struct stream_out * out)
      */
     if ((out->devices & AUDIO_DEVICE_OUT_AUX_DIGITAL) &&
         (((out->format & AUDIO_FORMAT_MAIN_MASK) == AUDIO_FORMAT_PCM) ||
-        ((out->compr_config.codec != NULL) && (out->compr_config.codec->compr_passthr == LEGACY_PCM)))) {
+        ((out->compr_config.codec != NULL) && (COMPR_PASSTHR(out->compr_config.codec) == LEGACY_PCM)))) {
         if (android_atomic_acquire_load(&compress_passthru_active) > 0) {
             ALOGI("drop data as pass thru is active");
             return true;
@@ -448,16 +448,16 @@ void audio_extn_passthru_update_stream_configuration(
     if(out->compr_config.codec != NULL) {
         if (audio_extn_passthru_is_passt_supported(adev, out)) {
             ALOGV("%s:PASSTHROUGH", __func__);
-            out->compr_config.codec->compr_passthr = PASSTHROUGH;
+            COMPR_PASSTHR(out->compr_config.codec) = PASSTHROUGH;
         } else if (audio_extn_passthru_is_convert_supported(adev, out)) {
             ALOGV("%s:PASSTHROUGH CONVERT", __func__);
-            out->compr_config.codec->compr_passthr = PASSTHROUGH_CONVERT;
+            COMPR_PASSTHR(out->compr_config.codec) = PASSTHROUGH_CONVERT;
         } else if (out->format == AUDIO_FORMAT_IEC61937) {
             ALOGV("%s:PASSTHROUGH IEC61937", __func__);
-            out->compr_config.codec->compr_passthr = PASSTHROUGH_IEC61937;
+            COMPR_PASSTHR(out->compr_config.codec) = PASSTHROUGH_IEC61937;
         } else {
             ALOGV("%s:NO PASSTHROUGH", __func__);
-            out->compr_config.codec->compr_passthr = LEGACY_PCM;
+            COMPR_PASSTHR(out->compr_config.codec) = LEGACY_PCM;
        }
     }
 }

@@ -44,6 +44,7 @@
 #include <hardware/audio.h>
 #include <tinyalsa/asoundlib.h>
 #include <tinycompress/tinycompress.h>
+#include "compress_compat.h"
 
 #include <audio_route/audio_route.h>
 #include "audio_defs.h"

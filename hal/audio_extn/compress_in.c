@@ -64,7 +64,7 @@ uint64_t timestamp;
 #define compress_config_set_timstamp_flag(config) (-ENOSYS)
 #else
 #define compress_config_set_timstamp_flag(config) \
-            (config)->codec->flags |= COMPRESSED_TIMESTAMP_FLAG
+            COMPR_FLAGS((config)->codec) |= COMPRESSED_TIMESTAMP_FLAG
 #endif
 
 #define COMPRESS_RECORD_NUM_FRAGMENTS 8

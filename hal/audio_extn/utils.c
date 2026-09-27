@@ -1390,22 +1390,46 @@ int get_snd_codec_id(audio_format_t format)
         id = SND_AUDIOCODEC_PCM;
         break;
     case AUDIO_FORMAT_FLAC:
+#ifdef AUDIO_COMPR_GENERIC_DEC
+        id = SND_AUDIOCODEC_BESPOKE;
+#else
         id = SND_AUDIOCODEC_FLAC;
+#endif
         break;
     case AUDIO_FORMAT_ALAC:
+#ifdef AUDIO_COMPR_GENERIC_DEC
+        id = SND_AUDIOCODEC_BESPOKE;
+#else
         id = SND_AUDIOCODEC_ALAC;
+#endif
         break;
     case AUDIO_FORMAT_APE:
+#ifdef AUDIO_COMPR_GENERIC_DEC
+        id = SND_AUDIOCODEC_BESPOKE;
+#else
         id = SND_AUDIOCODEC_APE;
+#endif
         break;
     case AUDIO_FORMAT_VORBIS:
+#ifdef AUDIO_COMPR_GENERIC_DEC
+        id = SND_AUDIOCODEC_BESPOKE;
+#else
         id = SND_AUDIOCODEC_VORBIS;
+#endif
         break;
     case AUDIO_FORMAT_WMA:
+#ifdef AUDIO_COMPR_GENERIC_DEC
+        id = SND_AUDIOCODEC_BESPOKE;
+#else
         id = SND_AUDIOCODEC_WMA;
+#endif
         break;
     case AUDIO_FORMAT_WMA_PRO:
+#ifdef AUDIO_COMPR_GENERIC_DEC
+        id = SND_AUDIOCODEC_BESPOKE;
+#else
         id = SND_AUDIOCODEC_WMA_PRO;
+#endif
         break;
     case AUDIO_FORMAT_MP2:
         id = SND_AUDIOCODEC_MP2;
@@ -1428,10 +1452,18 @@ int get_snd_codec_id(audio_format_t format)
         id = SND_AUDIOCODEC_IEC61937;
         break;
     case AUDIO_FORMAT_DSD:
+#ifdef AUDIO_COMPR_GENERIC_DEC
+        id = SND_AUDIOCODEC_BESPOKE;
+#else
         id = SND_AUDIOCODEC_DSD;
+#endif
         break;
     case AUDIO_FORMAT_APTX:
+#ifdef AUDIO_COMPR_GENERIC_DEC
+        id = SND_AUDIOCODEC_BESPOKE;
+#else
         id = SND_AUDIOCODEC_APTX;
+#endif
         break;
     default:
         ALOGE("%s: Unsupported audio format :%x", __func__, format);
@@ -1439,6 +1471,33 @@ int get_snd_codec_id(audio_format_t format)
 
     return id;
 }
+
+#ifdef AUDIO_COMPR_GENERIC_DEC
+/* Decoder type for SND_AUDIOCODEC_BESPOKE streams, 0 if not a generic one */
+int get_snd_codec_generic_format(audio_format_t format)
+{
+    switch (format & AUDIO_FORMAT_MAIN_MASK) {
+    case AUDIO_FORMAT_FLAC:
+        return AUDIO_COMP_FORMAT_FLAC;
+    case AUDIO_FORMAT_ALAC:
+        return AUDIO_COMP_FORMAT_ALAC;
+    case AUDIO_FORMAT_APE:
+        return AUDIO_COMP_FORMAT_APE;
+    case AUDIO_FORMAT_VORBIS:
+        return AUDIO_COMP_FORMAT_VORBIS;
+    case AUDIO_FORMAT_WMA:
+        return AUDIO_COMP_FORMAT_WMA;
+    case AUDIO_FORMAT_WMA_PRO:
+        return AUDIO_COMP_FORMAT_WMA_PRO;
+    case AUDIO_FORMAT_DSD:
+        return AUDIO_COMP_FORMAT_DSD;
+    case AUDIO_FORMAT_APTX:
+        return AUDIO_COMP_FORMAT_APTX;
+    default:
+        return 0;
+    }
+}
+#endif
 
 void audio_extn_utils_send_audio_calibration(struct audio_device *adev,
                                              struct audio_usecase *usecase)
