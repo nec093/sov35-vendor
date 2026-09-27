@@ -48,6 +48,12 @@ PRODUCT_PACKAGES += \
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/idc/clearpad.idc:$(TARGET_COPY_OUT_VENDOR)/usr/idc/clearpad.idc
 
+# Wi-Fi firmware for the mainline brcmfmac driver of the 5.4 kernel
+# (same BCM4359 firmware and NVRAM the bcmdhd paths carry, under the names brcmfmac asks for)
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/prebuilt/firmware/brcm/brcmfmac4359-pcie.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/brcm/brcmfmac4359-pcie.bin \
+    $(LOCAL_PATH)/prebuilt/firmware/brcm/brcmfmac4359-pcie.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/brcm/brcmfmac4359-pcie.txt
+
 # NFC
 
 # Thermal Configuration
