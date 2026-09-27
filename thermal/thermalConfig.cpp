@@ -736,11 +736,11 @@ namespace implementation {
 		},
 		{
 			TemperatureType::SKIN,
-			{ "xo-therm-adc" },
+			{ "quiet-therm-adc" },
 			"skin",
-			40000,
-			95000,
-			40000,
+			47000,
+			65000,
+			47000,
 			true,
 		},
 		{
