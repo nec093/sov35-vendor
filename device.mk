@@ -57,7 +57,8 @@ PRODUCT_COPY_FILES += \
 # (same BCM4359 firmware and NVRAM the bcmdhd paths carry, under the names brcmfmac asks for)
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/prebuilt/firmware/brcm/brcmfmac4359-pcie.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/brcm/brcmfmac4359-pcie.bin \
-    $(LOCAL_PATH)/prebuilt/firmware/brcm/brcmfmac4359-pcie.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/brcm/brcmfmac4359-pcie.txt
+    $(LOCAL_PATH)/prebuilt/firmware/brcm/brcmfmac4359-pcie.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/brcm/brcmfmac4359-pcie.txt \
+    $(LOCAL_PATH)/prebuilt/firmware/brcm/brcmfmac4359-pcie.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/brcm/brcmfmac4359-pcie.somc,keyaki-row.txt
 
 # NFC
 
