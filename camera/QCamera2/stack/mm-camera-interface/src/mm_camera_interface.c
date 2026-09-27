@@ -3391,10 +3391,32 @@ static int mm_camera_util_match_subdev_49(struct media_entity_desc entity,
      return (entity.type == gid);
 }
 #else
+/*
+ * The kernel reports the msm camera entities in the pre-4.6 (type, group_id)
+ * encoding the mm-camera blobs expect, while the 4.9 uapi headers carry the
+ * IDs as MSM_CAMERA_SUBDEV_BASE + n (CSID and BUF_MNGR swapped) and
+ * QCAMERA_VNODE_GROUP_ID == MEDIA_ENT_F_IO_V4L. Map those to the old IDs.
+ */
+static uint32_t mm_camera_util_legacy_gid(uint32_t gid)
+{
+#ifdef MSM_CAMERA_SUBDEV_BASE
+     if (gid == QCAMERA_VNODE_GROUP_ID)
+          return 2;
+     if (gid == MSM_CAMERA_SUBDEV_CSID)
+          return 1;
+     if (gid == MSM_CAMERA_SUBDEV_BUF_MNGR)
+          return 13;
+     if (gid >= MSM_CAMERA_SUBDEV_BASE && gid <= MSM_CAMERA_SUBDEV_BASE + 21)
+          return gid - MSM_CAMERA_SUBDEV_BASE;
+#endif
+     return gid;
+}
+
 static int mm_camera_util_match_subdev(struct media_entity_desc entity,
      uint32_t gid, uint32_t type)
 {
-     return (entity.type == type && entity.group_id == gid);
+     return (entity.type == type &&
+             entity.group_id == mm_camera_util_legacy_gid(gid));
 }
 #endif
 
