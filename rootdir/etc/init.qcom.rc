@@ -242,6 +242,25 @@ on early-boot
     # Set RLIMIT_MEMLOCK to 64MB
     setrlimit 8 67108864 67108864
 
+    # Audio (audio-kernel modules of the 5.4 kernel), in dependency order,
+    # before the ADSP is booted below
+    insmod /vendor/lib/modules/snd_event_dlkm.ko
+    insmod /vendor/lib/modules/q6_notifier_dlkm.ko
+    insmod /vendor/lib/modules/apr_dlkm.ko
+    insmod /vendor/lib/modules/adsp_loader_dlkm.ko
+    insmod /vendor/lib/modules/q6_dlkm.ko
+    insmod /vendor/lib/modules/platform_dlkm.ko
+    insmod /vendor/lib/modules/pinctrl_wcd_dlkm.ko
+    insmod /vendor/lib/modules/wcd_core_dlkm.ko
+    insmod /vendor/lib/modules/swr_dlkm.ko
+    insmod /vendor/lib/modules/swr_ctrl_dlkm.ko
+    insmod /vendor/lib/modules/stub_dlkm.ko
+    insmod /vendor/lib/modules/mbhc_dlkm.ko
+    insmod /vendor/lib/modules/wsa881x_dlkm.ko
+    insmod /vendor/lib/modules/wcd9xxx_dlkm.ko
+    insmod /vendor/lib/modules/wcd9335_dlkm.ko
+    insmod /vendor/lib/modules/machine_dlkm.ko
+
     # Allow subsystem (modem etc) debugging
     write /sys/kernel/boot_adsp/boot 1
     write /sys/kernel/boot_slpi/boot 1
@@ -566,15 +585,6 @@ on property:init.svc.vendor.per_mgr=running
 on property:sys.shutdown.requested=*
     stop vendor.per_proxy
     stop vendor.ims_rtp_daemon
-
-# Camera server for the QCamera2 HAL (camera.msm8996); without it the HAL
-# reports no cameras
-service qcamerasvr /vendor/bin/mm-qcamera-daemon
-    class late_start
-    user camera
-    group camera system inet input graphics
-    writepid /dev/cpuset/system-background/tasks
-    socket cammw_tintless stream 0660 camera camera
 
 service adsprpcd /vendor/bin/adsprpcd
     class main
