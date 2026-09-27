@@ -567,6 +567,15 @@ on property:sys.shutdown.requested=*
     stop vendor.per_proxy
     stop vendor.ims_rtp_daemon
 
+# Camera server for the QCamera2 HAL (camera.msm8996); without it the HAL
+# reports no cameras
+service qcamerasvr /vendor/bin/mm-qcamera-daemon
+    class late_start
+    user camera
+    group camera system inet input graphics
+    writepid /dev/cpuset/system-background/tasks
+    socket cammw_tintless stream 0660 camera camera
+
 service adsprpcd /vendor/bin/adsprpcd
     class main
     user media
