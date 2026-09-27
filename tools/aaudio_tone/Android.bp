@@ -1,0 +1,6 @@
+cc_binary {
+    name: "aaudio_tone",
+    srcs: ["aaudio_tone.c"],
+    shared_libs: ["libaaudio"],
+    cflags: ["-Wall", "-Werror"],
+}

@@ -34,6 +34,9 @@ TARGET_FORCE_PREBUILT_KERNEL := true
 # in its kernel-4.9 mode.
 TARGET_KERNEL_VERSION := 4.9
 TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/Image.gz-dtb
+# Audio: the kernel's audio-kernel (techpack) modules, built with that
+# Image; init.qcom.rc insmods them from /vendor/lib/modules in order.
+BOARD_VENDOR_KERNEL_MODULES := $(wildcard $(DEVICE_PATH)/prebuilt/modules/*.ko)
 
 # Partitions
 BOARD_CACHEIMAGE_PARTITION_SIZE := 268435456
