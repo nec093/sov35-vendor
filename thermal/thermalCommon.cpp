@@ -28,7 +28,9 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cinttypes>
 #include <string>
 #include <dirent.h>
@@ -113,6 +115,19 @@ static int writeToFile(std::string_view path, std::string data)
 	return -1;
 }
 
+static bool parseInt(const std::string& buf, int& val)
+{
+	char *end;
+	long v;
+
+	errno = 0;
+	v = strtol(buf.c_str(), &end, 0);
+	if (end == buf.c_str() || errno)
+		return false;
+	val = (int)v;
+	return true;
+}
+
 static int readLineFromFile(std::string_view path, std::string& out)
 {
 	char *fgets_ret;
@@ -126,15 +141,19 @@ static int readLineFromFile(std::string_view path, std::string& out)
 	if (fd == NULL) {
 		LOG(ERROR) << "Path:" << std::string(path) << " file open error.err:"
 			<< strerror(errno) << std::endl;
-		return errno;
+		return -errno;
 	}
 
+	/* callers treat > 0 as success: a failed read (e.g. a sensor whose
+	 * temp node returns -EINVAL) must come back negative */
 	fgets_ret = fgets(buf, MAX_LENGTH, fd);
 	if (NULL != fgets_ret) {
 		rv = (int)strlen(buf);
 		out.append(buf, rv);
 	} else {
-		rv = ferror(fd);
+		LOG(ERROR) << "Path:" << std::string(path) << " read error.err:"
+			<< strerror(errno) << std::endl;
+		rv = -1;
 	}
 
 	fclose(fd);
@@ -383,7 +402,12 @@ int ThermalCommon::read_cdev_state(struct therm_cdev& cdev)
 			" for cdev: " << cdev.c.name;
 		return -1;
 	}
-	cdev.c.value = std::stoi(buf, nullptr, 0);
+	int state;
+	if (!parseInt(buf, state)) {
+		LOG(ERROR) << "Bad state \"" << buf << "\" for cdev " << cdev.c.name;
+		return -1;
+	}
+	cdev.c.value = state;
 	LOG(DEBUG) << "cdev Name:" << cdev.c.name << ". state:" <<
 		cdev.c.value << std::endl;
 
@@ -453,7 +477,13 @@ int ThermalCommon::read_temperature(struct therm_sensor& sensor)
 			" for sensor " << sensor.t.name;
 		return -1;
 	}
-	sensor.t.value = (float)std::stoi(buf, nullptr, 0) / (float)sensor.mulFactor;
+	int raw;
+	if (!parseInt(buf, raw)) {
+		LOG(ERROR) << "Bad temperature \"" << buf << "\" for sensor "
+			<< sensor.t.name;
+		return -1;
+	}
+	sensor.t.value = (float)raw / (float)sensor.mulFactor;
 	LOG(DEBUG) << "Sensor Name:" << sensor.t.name << ". Temperature:" <<
 		(float)sensor.t.value << std::endl;
 
