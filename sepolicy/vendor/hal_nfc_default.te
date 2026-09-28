@@ -10,3 +10,9 @@ allow hal_nfc_default hal_nxpnfc_hwservice:hwservice_manager { find add };
 
 # Allow hal_nfc_default to find hal_secure_element_hwservice
 allow hal_nfc_default hal_secure_element_hwservice:hwservice_manager find;
+
+# Sony's CXD224X module keeps dynamic config values in nfc.dc.* properties
+set_prop(hal_nfc_default, vendor_nfc_dc_prop)
+
+# The CXD224X module holds a wakelock while talking to the chip
+wakelock_use(hal_nfc_default)

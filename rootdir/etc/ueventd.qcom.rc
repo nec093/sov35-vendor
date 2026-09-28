@@ -240,6 +240,7 @@
 
 # NFC device
 /dev/pn54x                0660   nfc        nfc
+/dev/cxd224x-i2c          0660   nfc        nfc
 
 # UIO devices
 /dev/uio0                 0660   system     system
