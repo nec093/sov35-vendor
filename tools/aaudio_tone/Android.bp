@@ -4,3 +4,10 @@ cc_binary {
     shared_libs: ["libaaudio"],
     cflags: ["-Wall", "-Werror"],
 }
+
+cc_binary {
+    name: "aaudio_rec",
+    srcs: ["aaudio_rec.c"],
+    shared_libs: ["libaaudio"],
+    cflags: ["-Wall", "-Werror"],
+}
