@@ -1,0 +1,30 @@
+cc_library_shared {
+    name: "libnfc_cxd224x_path_shim",
+    vendor: true,
+    srcs: ["path_shim.c"],
+    shared_libs: ["libdl"],
+    cflags: ["-Wall", "-Werror"],
+}
+
+cc_binary {
+    name: "android.hardware.nfc@1.2-service.cxd224x",
+    defaults: ["hidl_defaults"],
+    vendor: true,
+    relative_install_path: "hw",
+    init_rc: ["android.hardware.nfc@1.2-service.cxd224x.rc"],
+    vintf_fragments: ["android.hardware.nfc@1.2-service.cxd224x.xml"],
+    srcs: [
+        "Nfc.cpp",
+        "service.cpp",
+    ],
+    shared_libs: [
+        "android.hardware.nfc@1.0",
+        "android.hardware.nfc@1.1",
+        "android.hardware.nfc@1.2",
+        "libhardware",
+        "libhidlbase",
+        "liblog",
+        "libutils",
+    ],
+    required: ["libnfc_cxd224x_path_shim"],
+}

@@ -22,3 +22,9 @@ vendor/etc/sensors/sensor_def_qcomdev.conf
 etc/firmware/touch_module_id_0xb0.img:vendor/etc/firmware/touch_module_id_0xb0.img
 etc/firmware/touch_module_id_0xb1.img:vendor/etc/firmware/touch_module_id_0xb1.img
 etc/firmware/touch_module_id_0xb2.img:vendor/etc/firmware/touch_module_id_0xb2.img
+
+# NFC (Sony CXD224X) - from the SOV35 stock image
+vendor/firmware/cxd224x_firmware_ES1.0.bin
+vendor/firmware/cxd224x_firmware_ES1.1.bin
+vendor/lib64/hw/nfc_nci.cxd224x.msm8996.so
+vendor/lib64/libnfc-config.so

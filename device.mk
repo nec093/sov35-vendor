@@ -60,5 +60,16 @@ PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/prebuilt/firmware/brcm/brcmfmac4359-pcie.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/brcm/brcmfmac4359-pcie.txt \
     $(LOCAL_PATH)/prebuilt/firmware/brcm/brcmfmac4359-pcie.txt:$(TARGET_COPY_OUT_VENDOR)/firmware/brcm/brcmfmac4359-pcie.somc,keyaki-row.txt
 
-# NFC
+# NFC: Sony CXD224X (FeliCa/NFC) through its legacy vendor module
+PRODUCT_PACKAGES += \
+    android.hardware.nfc@1.2-service.cxd224x
+
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/nfc/conf/libnfc-nci.conf:$(TARGET_COPY_OUT_VENDOR)/etc/libnfc-nci.conf \
+    $(LOCAL_PATH)/nfc/conf/libnfc-cxd-224x02010010.conf:$(TARGET_COPY_OUT_VENDOR)/etc/libnfc-cxd-224x02010010.conf \
+    $(LOCAL_PATH)/nfc/conf/libnfc-cxd-224x02310011.conf:$(TARGET_COPY_OUT_VENDOR)/etc/libnfc-cxd-224x02310011.conf \
+    frameworks/native/data/etc/android.hardware.nfc.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.nfc.xml \
+    frameworks/native/data/etc/android.hardware.nfc.hce.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.nfc.hce.xml \
+    frameworks/native/data/etc/android.hardware.nfc.hcef.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.nfc.hcef.xml \
+    frameworks/native/data/etc/com.android.nfc_extras.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/com.android.nfc_extras.xml
 

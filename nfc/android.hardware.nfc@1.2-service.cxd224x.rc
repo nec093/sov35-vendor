@@ -1,0 +1,9 @@
+service vendor.nfc_hal_service /vendor/bin/hw/android.hardware.nfc@1.2-service.cxd224x
+    interface android.hardware.nfc@1.0::INfc default
+    interface android.hardware.nfc@1.1::INfc default
+    interface android.hardware.nfc@1.2::INfc default
+    class hal
+    user nfc
+    group nfc
+    # Sony's legacy module reads its configs from /etc (see path_shim.c)
+    setenv LD_PRELOAD /vendor/lib64/libnfc_cxd224x_path_shim.so
