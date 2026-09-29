@@ -298,3 +298,7 @@
 
 # ADSP, SLPI, Venus and modem images live on the modem partition
 firmware_directories /vendor/firmware_mnt/image/
+
+# Coldboot restorecon of /sys runs in the coldboot subprocesses (the vendor
+# file_contexts has ~170 /sys regexes; serial restorecon took ~4 s)
+parallel_restorecon enabled
