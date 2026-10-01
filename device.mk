@@ -44,6 +44,13 @@ PRODUCT_PACKAGES += \
 
 # Camera Augmented Sensing Helper
 
+# Camera: module list and chromatix mapping for the SODP Android 10 mm-camera
+# blobs (vendor/sony/tone-common), from sonyxperiadev/device-sony-keyaki q-mr1
+PRODUCT_COPY_FILES += \
+    $(LOCAL_PATH)/rootdir/vendor/etc/camera/camera_config.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/camera_config.xml \
+    $(LOCAL_PATH)/rootdir/vendor/etc/camera/imx258_chromatix.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/imx258_chromatix.xml \
+    $(LOCAL_PATH)/rootdir/vendor/etc/camera/imx400_chromatix.xml:$(TARGET_COPY_OUT_VENDOR)/etc/camera/imx400_chromatix.xml
+
 # Input
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/idc/clearpad.idc:$(TARGET_COPY_OUT_VENDOR)/usr/idc/clearpad.idc
