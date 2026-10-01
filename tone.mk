@@ -391,8 +391,7 @@ PRODUCT_PACKAGES += \
     libshim_binder \
     libtone_shim \
     libbase_shim \
-    libcutils_shim \
-    libexidx_shim
+    libcutils_shim
 
 # Telephony
 PRODUCT_PACKAGES += \

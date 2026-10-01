@@ -114,13 +114,6 @@ function blob_fixup() {
         "${PATCHELF}" --replace-needed "libprotobuf-cpp-full.so" "libprotobuf-cpp-full-v28.so" "${2}"
         ;;
 
-    # Old arm32 libc symbols __exidx_start/__exidx_end
-    vendor/lib/libfastcvopt.so)
-        for  EXIDX_SHIM in $(grep -L "libexidx_shim.so" "${2}"); do
-            patchelf --add-needed "libexidx_shim.so" "$EXIDX_SHIM"
-        done
-        ;;
-
     vendor/lib64/libtpm.so)
         patchelf --add-needed "libshim_binder.so" "${2}"
         ;;

@@ -31,10 +31,3 @@ cc_library {
     ],
     shared_libs: ["libcutils"],
 }
-
-cc_library_shared {
-    name: "libexidx_shim",
-    srcs: ["exidx.c"],
-    compile_multilib: "32",
-    vendor: true,
-}
