@@ -11,8 +11,11 @@
 /dev/block/bootdevice/by-name/recovery       /recovery          emmc    defaults                                                    recoveryonly
 /dev/block/bootdevice/by-name/system         /system            ext4    ro,barrier=1                                                wait,recoveryonly
 /dev/block/bootdevice/by-name/oem            /vendor            ext4    ro,barrier=1                                                wait,recoveryonly
+# fsverity: odsign protects the ART boot artifacts with fs-verity; without the
+# ext4 verity feature it fails and odrefresh recompiles them on every boot.
+# fs_mgr turns the feature on at mount time.
 /dev/block/bootdevice/by-name/userdata       /data              f2fs    nosuid,nodev,noatime,data_flush                             wait,check,encryptable=footer,quota,reservedsize=128M
-/dev/block/bootdevice/by-name/userdata       /data              ext4    nosuid,nodev,noatime,barrier=1,noauto_da_alloc              wait,check,encryptable=footer,quota,formattable,reservedsize=128M
+/dev/block/bootdevice/by-name/userdata       /data              ext4    nosuid,nodev,noatime,barrier=1,noauto_da_alloc              wait,check,encryptable=footer,quota,formattable,reservedsize=128M,fsverity
 /dev/block/bootdevice/by-name/cache          /cache             f2fs    nosuid,nodev,noatime,inline_xattr,flush_merge,data_flush    wait,check
 /dev/block/bootdevice/by-name/cache          /cache             ext4    nosuid,nodev,noatime,barrier=1                              wait,check,formattable
 /dev/block/bootdevice/by-name/persist        /mnt/vendor/persist     ext4    nosuid,nodev,barrier=1                         wait
