@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Proprietary files (vendor/sony/keyaki, vendor/sony/tone-common).
+  sov35-vendor-blobs is a private repository; without access, leave this
+  file out and provide vendor/sony yourself (see README.md, "Proprietary files").
+-->
+<manifest>
+  <remote name="sov35-ssh" fetch="ssh://git@github.com/nec093/" />
+  <project path="vendor/sony" name="sov35-vendor-blobs" remote="sov35-ssh" revision="main" />
+</manifest>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  sov35-vendor: LineageOS 18.1 Treble vendor for the Xperia XZs (SOV35, keyaki).
+  Put this file in .repo/local_manifests/ of a lineage-18.1 checkout.
+-->
+<manifest>
+  <remote name="sov35" fetch="https://github.com/nec093/" />
+
+  <!-- audio HAL: lineage-18.1-caf-msm8996 + build fix for the 5.4 audio-kernel uapi headers -->
+  <remove-project path="hardware/qcom-caf/msm8996/audio" />
+  <project path="hardware/qcom-caf/msm8996/audio" name="sov35-vendor" remote="sov35" revision="hal-audio-msm8996" />
+
+  <!-- device trees -->
+  <project path="device/sony/keyaki" name="sov35-vendor" remote="sov35" revision="device-keyaki" />
+  <project path="device/sony/tone-common" name="sov35-vendor" remote="sov35" revision="device-tone-common" />
+</manifest>
