@@ -2,11 +2,3 @@
 # bootloader cmdline (stock and 5.4 boot images) says keyaki, and init only
 # imports /vendor/etc/init/hw/init.${ro.hardware}.rc.
 import /vendor/etc/init/hw/init.qcom.rc
-
-# TEMPORARY: with the modem firmware now found (firmware_directories), the
-# modem crashes ~0.1 s after the IPA QMI init ("ExIPC ... badva=85ffffb8") on
-# both the 4.9 and the 5.4 kernel, and the SSR notification then panics on
-# RPM ("RPM failed to respond!"). Keep the modem down until that is fixed;
-# ADSP/SLPI/venus firmware stays visible.
-on post-fs
-    mount none /dev/null /vendor/firmware_mnt/image/modem.mdt bind
