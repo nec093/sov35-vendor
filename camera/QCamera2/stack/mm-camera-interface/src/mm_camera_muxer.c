@@ -2013,11 +2013,13 @@ int32_t mm_camera_muxer_do_frame_sync(
                     }
                 }
                 queue->que.size--;
+                last_buf = last_buf->next;
                 cam_list_del_node(&node->list);
                 free(node);
                 free(super_obj);
+            } else {
+                last_buf = last_buf->next;
             }
-            last_buf = last_buf->next;
         }
     } else {
         if ((queue->attr.max_unmatched_frames < unmatched_bundles)
@@ -2190,6 +2192,8 @@ int32_t mm_muxer_frame_sync_queue_deinit(mm_frame_sync_queue_t *queue)
 {
     int32_t rc = 0;
     rc = cam_queue_deinit(&queue->que);
+    queue->expected_frame_id = 0;
+    queue->match_cnt = 0;
     return rc;
 }
 

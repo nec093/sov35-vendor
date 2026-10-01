@@ -13,21 +13,21 @@ else
     LOCAL_CFLAGS += -DCAMERA_CHIPSET_8937
 endif
 
-ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
+ifneq ($(TARGET_KERNEL_VERSION),$(filter $(TARGET_KERNEL_VERSION),3.18 4.4 4.9))
 LOCAL_C_INCLUDES += \
         system/core/libion/kernel-headers \
         system/core/libion/include
 endif
 
+LOCAL_ADDITIONAL_DEPENDENCIES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr
 LOCAL_C_INCLUDES += $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
 LOCAL_C_INCLUDES+= $(kernel_includes)
 
 LOCAL_C_INCLUDES += \
     $(LOCAL_PATH)/../ \
     $(LOCAL_PATH)/../../stack/mm-camera-interface/inc \
-    hardware/libhardware/include/hardware \
-    $(call project-path-for,qcom-media)/libstagefrighthw \
-    $(call project-path-for,qcom-media)/mm-core/inc
+    $(SRC_MEDIA_HAL_DIR)/libstagefrighthw \
+    $(SRC_MEDIA_HAL_DIR)/mm-core/inc 
 
 LOCAL_HEADER_LIBRARIES := libhardware_headers
 LOCAL_HEADER_LIBRARIES += libbinder_headers
@@ -43,7 +43,7 @@ LOCAL_SRC_FILES := \
     QCameraHAL3Test.cpp
 
 LOCAL_SHARED_LIBRARIES:= libutils liblog libcamera_metadata libcutils
-ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
+ifneq ($(TARGET_KERNEL_VERSION),$(filter $(TARGET_KERNEL_VERSION),3.18 4.4 4.9))
 LOCAL_SHARED_LIBRARIES += libion
 endif
 
@@ -56,7 +56,5 @@ LOCAL_VENDOR_MODULE := true
 include $(SDCLANG_COMMON_DEFS)
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror
-
-LOCAL_CFLAGS += -std=c++11 -std=gnu++0x
 
 include $(BUILD_EXECUTABLE)

@@ -931,7 +931,12 @@ int QCamera2HardwareInterface::take_picture(struct camera_device *device)
 
     // Acquire the perf lock for JPEG snapshot only
     if (hw->mParameters.isJpegPictureFormat()) {
-        hw->m_perfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
+        if (hw->isDualCamera() && (hw->mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
+            hw->m_perfLockMgr.acquirePerfLock(PERF_LOCK_BOKEH_SNAPSHOT,
+                    PERF_LOCK_BOKEH_SNAP_TIMEOUT_MS);
+        } else {
+            hw->m_perfLockMgr.acquirePerfLock(PERF_LOCK_TAKE_SNAPSHOT);
+        }
     }
 
     qcamera_api_result_t apiResult;
@@ -3441,6 +3446,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
     streamInfo->buf_cnt = streamInfo->num_bufs;
     streamInfo->streaming_mode = CAM_STREAMING_MODE_CONTINUOUS;
     streamInfo->is_secure = NON_SECURE;
+    streamInfo->secure_mode = SECURE_INVALID;
     streamInfo->bNoBundling = false;
 
     streamInfo->cam_type = (cam_sync_type_t)cam_type;
@@ -3543,6 +3549,7 @@ int QCamera2HardwareInterface::initStreamInfoBuf(cam_stream_type_t stream_type,
         }
         if (isSecureMode()) {
             streamInfo->is_secure = SECURE;
+            streamInfo->secure_mode = mParameters.getSecureSessionType();
         } else {
             streamInfo->is_secure = NON_SECURE;
         }
@@ -4426,6 +4433,12 @@ int QCamera2HardwareInterface::autoFocus()
             // Force the cameras to stream for auto focus on both
             forceCameraWakeup();
         }
+        //Send dummy focus event if the active camera doesn't support AF.
+        if (isDualCamera() && !mParameters.isAutoFocusSupported(mActiveCameras)) {
+            mActiveAF = false;
+            rc = sendEvtNotify(CAMERA_MSG_FOCUS, true, 0);
+            break;
+        }
         LOGI("Send AUTO FOCUS event. focusMode=%d, m_currentFocusState=%d \
                 mActiveCameras %d, mMasterCamera %d",
                 focusMode, m_currentFocusState, mActiveCameras, mMasterCamera);
@@ -5174,6 +5187,8 @@ int QCamera2HardwareInterface::takePicture()
 
             if(mParameters.getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
                 dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
+            } else if (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+                dualfov_snap_num = NUM_BOKEH_OUTPUT;
             }
 
             dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
@@ -7293,6 +7308,9 @@ int32_t QCamera2HardwareInterface::processRTBData(cam_rtb_msg_type_t rtbData)
     //Check if we are in real time bokeh mode
     if (isDualCamera() && (mParameters.getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)) {
         LOGH("DC RTB metadata: msgType: %d",rtbData);
+
+        mParameters.setBokehSnaphot(rtbData == CAM_RTB_MSG_DEPTH_EFFECT_SUCCESS);
+
         int32_t data_len = sizeof(rtbData);
         int32_t buffer_len = sizeof(rtbData)       //meta type
                 + sizeof(int)                  //data len
@@ -11877,6 +11895,7 @@ bool QCamera2HardwareInterface::isLowPowerMode()
     bool isLowpower = mParameters.getRecordingHintValue() && enable
             && ((dim.width * dim.height) >= (2048 * 1080));
     isLowpower = isLowpower || (mParameters.isHfrMode() && !mParameters.getBufBatchCount());
+    mParameters.setLowPower(isLowpower);
     LOGD("low power mode %d",isLowpower);
     return isLowpower;
 }
@@ -11969,6 +11988,8 @@ void QCamera2HardwareInterface::configureSnapshotSkip(bool skip)
                     }
                 }
             }
+            if (skip)
+                ((QCameraPicChannel *)pChannel)->flushSuperbuffer(mActiveCameras, 0);
         }
     }
 }

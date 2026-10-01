@@ -98,6 +98,11 @@ DEVICE_SPECIFIC_CAMERA_PATH := $(VENDOR_PATH)/camera
 BOARD_QTI_CAMERA_32BIT_ONLY := true
 BOARD_QTI_CAMERA_V2 := true
 CAMERA_DAEMON_NOT_PRESENT := true
+# The camera HAL is SODP's (sonyxperiadev/camera aosp/LA.UM.8.11.r1), paired
+# with the SODP Android 10 mm-camera blobs. It only builds on SODP platforms
+# and picks the kernel-4.9 media entity layout from SOMC_KERNEL_VERSION.
+PRODUCT_PLATFORM_SOD := true
+SOMC_KERNEL_VERSION := 4.9
 
 # Display
 MAX_VIRTUAL_DISPLAY_DIMENSION := 4096

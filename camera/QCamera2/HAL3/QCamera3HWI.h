@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions are
@@ -47,6 +47,8 @@
 #include "QCameraCommon.h"
 #include "QCamera3VendorTags.h"
 #include "QCameraDualCamSettings.h"
+#include "QCameraFOVControl.h"
+
 
 extern "C" {
 #include "mm_camera_interface.h"
@@ -83,6 +85,18 @@ typedef int64_t nsecs_t;
 #define INTERNAL_FRAME_STARTING_NUMBER 800
 #define EMPTY_FRAMEWORK_FRAME_NUMBER 0xFFFFFFFF
 
+//blur range
+#define MIN_BLUR 0
+#define MAX_BLUR 100
+#define BLUR_STEP 1
+
+#define MAX_MFPROC_FRAMECOUNT 5
+//ZSL queue attributes
+#define ZSL_WATER_MARK 2
+#define ZSL_UNMATCH_COUNT 3
+#define ZSL_LOOK_BACK 2
+#define ZSL_POST_FRAME_SKIP 1
+
 typedef enum {
     SET_ENABLE,
     SET_CONTROLENABLE,
@@ -96,8 +110,28 @@ typedef enum {
     QCFA_RAW_REPROCESS
 } quadra_cfa_state_t;
 
+typedef enum {
+    CONFIG_INDEX_MAIN = 0,
+    CONFIG_INDEX_AUX,
+    CONFIG_INDEX_MAX
+}stream_config_index_t;
 
 #define MODULE_ALL 0
+
+#define IS_PP_TYPE_NONE (getHalPPType() == CAM_HAL_PP_TYPE_NONE)
+
+#define IS_MULTI_CAMERA (isDualCamera() && IS_PP_TYPE_NONE)
+
+#define IS_HAL_PP_TYPE_BOKEH (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH)
+
+#define IS_HAL_PP_TYPE_SAT (getHalPPType() == CAM_HAL_PP_TYPE_SAT)
+
+#define IS_YUV_ZSL (mHALZSL == CAM_HAL3_ZSL_TYPE_CALLBACK)
+
+#define IS_SNAP_ZSL (mHALZSL == CAM_HAL3_ZSL_TYPE_SNAPSHOT)
+
+#define HW_RECOVERY_PROP "persist.vendor.camera.internal.restart"
+#define DEFAULT_VALUE_HW_RECOVERY_PROP "1"
 
 extern volatile uint32_t gCamHal3LogLevel;
 
@@ -105,6 +139,16 @@ class QCamera3MetadataChannel;
 class QCamera3PicChannel;
 class QCamera3HeapMemory;
 class QCamera3Exif;
+enum {
+    NONE,
+    INITIATE_HW_RECOVERY,
+}deferred_task_type_t;
+
+typedef struct {
+    uint32_t msg_type;
+    void *data;
+    void *owner;
+} DeferredTask;
 
 typedef struct {
     camera3_stream_t *stream;
@@ -194,6 +238,7 @@ public:
         camera3_stream_t *stream;
         bool need_metadata;
         bool meteringOnly;
+        bool needPastFrame;
     } InternalRequest;
 
     static int getCamInfo(uint32_t cameraId, struct camera_info *info);
@@ -201,6 +246,7 @@ public:
             uint32_t cam_handle);
     static int initCapabilities(uint32_t cameraId);
     static int initStaticMetadata(uint32_t cameraId);
+     static uint8_t convertIdToUTF8(uint32_t id);
     static void makeTable(cam_dimension_t *dimTable, size_t size,
             size_t max_size, int32_t *sizeTable);
     static void makeFPSTable(cam_fps_range_t *fpsTable, size_t size,
@@ -228,6 +274,7 @@ public:
     static void internalMetaCb(mm_camera_super_buf_t *metadata,
                 camera3_stream_buffer_t *buffer, uint32_t frame_number,
                 bool isInputBuffer, void *userdata);
+    static void* deferredWork(void* data);
 
     int initialize(const camera3_callback_ops_t *callback_ops);
     int configureStreams(camera3_stream_configuration_t *stream_list);
@@ -238,23 +285,31 @@ public:
     void orchestrateResult(camera3_capture_result_t *result);
     void orchestrateNotify(camera3_notify_msg_t *notify_msg);
 
+    int32_t orchestrateHDRCapture(camera3_capture_request_t *request);
+    int32_t orchestrateMultiFrameCapture(camera3_capture_request_t *request);
+    int32_t orchestrateMFCRawCapture(camera3_capture_request_t *request);
+    int32_t orchestrateAdvancedCapture(camera3_capture_request_t *request, bool &isAdvancedCapture);
+    int32_t createDeferredWork(DeferredTask task);
+
     void dump(int fd);
     int flushPerf();
 
-    int setFrameParameters(camera3_capture_request_t *request,
-            cam_stream_ID_t streamID, int blob_request, uint32_t snapshotStreamId);
+    int setFrameParameters(const camera_metadata_t *settings,
+            cam_stream_ID_t streamID, int blob_request, uint32_t snapshotStreamId,
+            metadata_buffer_t *mParams, const camera3_capture_request_t *request);
     int32_t setReprocParameters(camera3_capture_request_t *request,
             metadata_buffer_t *reprocParam, uint32_t snapshotStreamId);
     int8_t getReprocChannelCnt() {return m_ppChannelCnt;};
-    int translateToHalMetadata(const camera3_capture_request_t *request,
-            metadata_buffer_t *parm, uint32_t snapshotStreamId);
+    int translateToHalMetadata(const camera_metadata_t *settings,
+            metadata_buffer_t *parm, uint32_t snapshotStreamId,
+            const camera3_capture_request_t *request);
     camera_metadata_t* translateCbUrgentMetadataToResultMetadata (
                              metadata_buffer_t *metadata);
     camera_metadata_t* translateFromHalMetadata(metadata_buffer_t *metadata,
                             nsecs_t timestamp, int32_t request_id,
                             const CameraMetadata& jpegMetadata, uint8_t pipeline_depth,
-                            uint8_t capture_intent, uint8_t hybrid_ae_enable, bool pprocDone, uint8_t fwk_cacMode,
-                            bool firstMetadataInBatch);
+                            uint8_t capture_intent, bool pprocDone, uint8_t fwk_cacMode,
+                            bool firstMetadataInBatch, bool enableZSL, uint8_t fwkFlashMode);
     camera_metadata_t* saveRequestSettings(const CameraMetadata& jpegMetadata,
                             camera3_capture_request_t *request);
     int initParameters();
@@ -298,7 +353,9 @@ public:
     const cam_related_system_calibration_data_t *getRelatedCalibrationData();
     int getCameraId() {return mCameraId;}
     bool isQuadCfaSensor() {return m_bQuadraCfaSensor;}
-    int32_t deleteQCFARawChannel();
+    int32_t deleteQCFACaptureChannel();
+    cam_dimension_t getQCFAComapitbleDim(const uint32_t& width,
+                                             const uint32_t& height);
 
     template <typename fwkType, typename halType> struct QCameraMap {
         fwkType fwk_name;
@@ -311,6 +368,26 @@ public:
     } QCameraPropMap;
 
     uint32_t getCameraID() {return mCameraId;}
+    bool isDualCamera() { return mDualCamera; };
+    int32_t bundleRelatedCameras(bool enable_sync);
+    cam_hal_pp_type_t getHalPPType() {return m_halPPType;}
+    bool isDimSupportedbyCamType(const cam_dimension_t &dim, const cam_sync_type_t &type);
+    cam_dimension_t getOptimalSupportedDim(const cam_dimension_t &dim, const cam_sync_type_t &type);
+    cam_dimension_t getMaxSingleIspRes();
+    bool isAsymetricDim(const cam_dimension_t &dim);
+    bool isPPUpscaleNeededForDim(const cam_dimension_t &dim);
+    void rectifyStreamDimIfNeeded(
+        cam_dimension_t &dim, const cam_sync_type_t &type, bool &needUpScale);
+    uint32_t getBlurLevel() {return mBlurLevel;}
+    cam_dual_camera_perf_mode_t getLowPowerMode(cam_sync_type_t cam);
+    bool needHALPP() {return m_bNeedHalPP;}
+    cam_capability_t *getCamHalCapabilities();
+    bool isPPMaskSetForScaling(cam_feature_mask_t pp_mask);
+    bool isHALZSLEnabled() {return mHALZSL;}
+    bool isQuadraSizedDimension(cam_dimension_t &dim);
+    QCamera3PicChannel* getPicChannel() {return mPictureChannel;};
+    cam_dimension_t getMaxRawSize(uint32_t camera_id);
+    int32_t updateFrameMetaWithParams(metadata_buffer_t *frameMeta);
 private:
 
     // State transition conditions:
@@ -348,7 +425,6 @@ private:
     int closeCamera();
     int flush(bool restartChannels);
     static size_t calcMaxJpegSize(uint32_t camera_id);
-    cam_dimension_t getMaxRawSize(uint32_t camera_id);
     static void addStreamConfig(Vector<int32_t> &available_stream_configs,
             int32_t scalar_format, const cam_dimension_t &dim,
             int32_t config_type);
@@ -381,10 +457,14 @@ private:
 
     bool isSupportChannelNeeded(camera3_stream_configuration_t *streamList,
             cam_stream_size_info_t stream_config_info);
+    bool IsQCFASelected(camera3_capture_request *request);
     bool isHdrSnapshotRequest(camera3_capture_request *request);
+    bool isMultiFrameSnapshotRequest(camera3_capture_request *request);
+    bool isMFCRaw(camera3_capture_request *request);
+    bool isSWMFNRSnapshotRequest(camera3_capture_request *request);
     int32_t setMobicat();
 
-    int32_t getSensorOutputSize(cam_dimension_t &sensor_dim);
+    int32_t getSensorOutputSize(cam_sensor_config_t &sensor_dim, uint32_t cam_type = CAM_TYPE_MAIN);
     int32_t setHalFpsRange(const CameraMetadata &settings,
             metadata_buffer_t *hal_metadata);
     int32_t extractSceneMode(const CameraMetadata &frame_settings, uint8_t metaMode,
@@ -394,7 +474,13 @@ private:
     int32_t numOfSizesOnEncoder(const camera3_stream_configuration_t *streamList,
             const cam_dimension_t &maxViewfinderSize);
 
-    void addToPPFeatureMask(int stream_format, uint32_t stream_idx);
+    void addToPPFeatureMask(int stream_format, uint32_t stream_idx,
+                cam_stream_size_info_t *mStreamConfigInfo);
+    int cacheFwConfiguredStreams(camera3_stream_configuration_t *streams_configuration);
+    Vector<uint32_t> getPhyIdListForCameraId(uint32_t cameraId);
+    int validateStreamsPhyIds(camera3_stream_configuration_t *streamList);
+    void setDCFeature(cam_feature_mask_t& feature_mask,
+            cam_stream_type_t stream_type, cam_dimension_t stream_dim);
     void updateFpsInPreviewBuffer(metadata_buffer_t *metadata, uint32_t frame_number);
     void updateTimeStampInPendingBuffers(uint32_t frameNumber, nsecs_t timestamp);
 
@@ -408,6 +494,7 @@ private:
             camera3_error_msg_code_t errorCode);
     int32_t getReprocessibleOutputStreamId(uint32_t &id);
     int32_t handleCameraDeviceError();
+    bool checkFrameInPendingList(const uint32_t frame_number);
 
     bool isOnEncoder(const cam_dimension_t max_viewfinder_size,
             uint32_t width, uint32_t height);
@@ -416,7 +503,9 @@ private:
 
     static bool supportBurstCapture(uint32_t cameraId);
     int32_t setBundleInfo();
+    int32_t setAuxBundleInfo();
     int32_t setInstantAEC(const CameraMetadata &meta);
+    void setChannelQuadraMode(camera3_capture_request_t *req, bool mode);
 
     static void convertLandmarks(cam_face_landmarks_info_t face, int32_t* landmarks);
     static void setInvalidLandmarks(int32_t* landmarks);
@@ -426,11 +515,41 @@ private:
             cam_color_filter_arrangement_t filter_arrangement);
     int32_t setSensorHDR(metadata_buffer_t *hal_metadata, bool enable,
             bool isVideoHdrEnable = false);
-    int32_t captureQuadraCfaRawInternal(camera3_capture_request_t *request);
+    int32_t captureQuadraCfaFrameInternal(camera3_capture_request_t *request);
     int32_t switchStreamConfigInternal(uint32_t frame_number);
+    uint8_t  mDualCamType;
 
+    inline bool isBayerMono() { return (mDualCamType == DUAL_CAM_BAYER_MONO); };
+    int32_t sendDualCamCmd(cam_dual_camera_cmd_type type,
+            uint8_t num_cam, void *info);
+    int32_t setDualCamBundleInfo(bool enable_sync,
+            uint8_t bundle_cam_idx);
+    int32_t configureHalPostProcess(bool bIsInput);
+    void switchMaster(uint32_t masterCam);
+    int32_t setDCMasterInfo(uint32_t camMaster);
+    int32_t setDCControls(uint32_t camMaster, uint32_t state,
+            bool bundleSnap, cam_fallback_mode_t fallbackMode);
+    int32_t setDCLowPowerMode(uint32_t state);
+    int32_t setDCFallbackMode(cam_fallback_mode_t fallback);
+    int32_t setDCDeferCamera(cam_dual_camera_defer_cmd_t type);
+    //dual camera api's
+    void rectifyStreamSizesByCamType(
+            cam_stream_size_info_t* streamsInfo, const cam_sync_type_t &type);
+    void initDCSettings();
+    void fillUBWCStats(camera3_stream_buffer_t *buffer);
+    void setColorMetadata(camera3_stream_buffer_t *buffer);
+    bool needZSLCapture(const camera3_capture_request_t *request);
+    int32_t addZSLChannel();
+    static void zsl_channel_cb(mm_camera_super_buf_t *recvd_frame, void *userdata);
+    int getConfiguredSATStreamDim(cam_dimension_t &dim);
+    bool isPreviewSATEnabled();
+    bool isHWRecoveryEnabled();
+    int doInternalRestart();
+    int initiateRecovery(bool defered = true);
     camera3_device_t   mCameraDevice;
     uint32_t           mCameraId;
+    uint32_t           mBlurLevel;
+    cam_hal_pp_type_t m_halPPType;
     mm_camera_vtbl_t  *mCameraHandle;
     bool               mCameraInitialized;
     camera_metadata_t *mDefaultMetadata[CAMERA3_TEMPLATE_COUNT];
@@ -445,23 +564,25 @@ private:
     QCamera3RegularChannel *mDummyBatchChannel;
     QCamera3DepthChannel *mDepthChannel;
     QCameraPerfLockMgr mPerfLockMgr;
-
     uint32_t mChannelHandle;
-
     void saveExifParams(metadata_buffer_t *metadata);
     mm_jpeg_exif_params_t mExifParams;
 
      //First request yet to be processed after configureStreams
     bool mFirstConfiguration;
     bool mFlush;
+    bool mStreamOnPending;
     bool mFlushPerf;
     bool mEnableRawDump;
     bool mForceHdrSnapshot;
     uint32_t mHdrFrameNum;
+    uint32_t mMultiFrameCaptureNumber;
     bool mHdrSnapshotRunning;
+    bool mMultiFrameSnapshotRunning;
     bool mShouldSetSensorHdr;
     QCamera3HeapMemory *mParamHeap;
     metadata_buffer_t* mParameters;
+    metadata_buffer_t* mAuxParameters;
     metadata_buffer_t* mPrevParameters;
     CameraMetadata mCurJpegMeta;
     bool m_bIsVideo;
@@ -486,7 +607,6 @@ private:
     uint8_t m_bTnrVideo;
     uint8_t m_debug_avtimer;
     uint8_t m_cacModeDisabled;
-    uint8_t m_bForceInfinityAf;
 
     /* Data structure to store pending request */
     typedef struct {
@@ -495,12 +615,14 @@ private:
         // metadata needs to be consumed by the corresponding stream
         // in order to generate the buffer.
         bool need_metadata;
+        bool isZSL;
     } RequestedBufferInfo;
 
     typedef struct {
         uint32_t frame_number;
         uint32_t num_buffers;
         int32_t request_id;
+        int32_t aux_request_id;
         List<RequestedBufferInfo> buffers;
         List<InternalRequest> internalRequestList;
         int blob_request;
@@ -512,10 +634,20 @@ private:
         uint8_t pipeline_depth;
         uint32_t partial_result_cnt;
         uint8_t capture_intent;
+        uint8_t aux_capture_intent;
         uint8_t fwkCacMode;
+        uint8_t fwkAuxCacMode;
         bool shutter_notified;
-        uint8_t hybrid_ae_enable;
         uint8_t scene_mode;
+        bool requested_on_aux;
+        bool requested_on_main;
+        bool received_main_meta;
+        bool requested_logical;
+        bool received_aux_meta;
+        mm_camera_super_buf_t *main_meta;
+        mm_camera_super_buf_t*aux_meta;
+        bool enableZSL;
+        uint8_t fwkFlashMode;
     } PendingRequestInfo;
     typedef struct {
         uint32_t frame_number;
@@ -542,17 +674,17 @@ private:
      * batch as value for that key */
     KeyedVector<uint32_t, uint32_t> mPendingBatchMap;
     cam_stream_ID_t mBatchedStreamsArray;
-
-    PendingBuffersMap mPendingBuffersMap;
     pthread_cond_t mRequestCond;
     pthread_cond_t mHdrRequestCond;
     uint32_t mPendingLiveRequest;
-    bool mWokenUpByDaemon;
     int32_t mCurrentRequestId;
-    cam_stream_size_info_t mStreamConfigInfo;
+    int32_t mAuxCurrentRequestId;
+    cam_stream_size_info_t mStreamConfigInfo[CONFIG_INDEX_MAX];
+    cam_stream_size_info_t mAuxStreamConfigInfo;
 
     //mutex for serialized access to camera3_device_ops_t functions
     pthread_mutex_t mMutex;
+    Mutex mMultiFrameReqLock;
 
     //condition used to signal flush after buffers have returned
     pthread_cond_t mBuffersCond;
@@ -568,8 +700,9 @@ private:
     const camera_module_callbacks_t *mCallbacks;
 
     uint8_t mCaptureIntent;
+    uint8_t mAuxCaptureIntent;
     uint8_t mCacMode;
-    uint8_t mHybridAeEnable;
+    uint8_t mAuxCacMode;
     metadata_buffer_t mReprocMeta; //scratch meta buffer
     /* 0: Not batch, non-zero: Number of image buffers in a batch */
     uint8_t mBatchSize;
@@ -582,8 +715,17 @@ public:
     bool mStreamConfig;
     QCameraCommon   mCommon;
     cam_format_t mRdiModeFmt;
-    QCamera3QCfaRawChannel *mQCFARawChannel;
+    QCamera3QCfaCaptureChannel *mQCFACaptureChannel;
     bool m_bQuadraCfaRequest;
+    bool m_bPreSnapQuadraCfaRequest;
+    QCameraFOVControl *m_pFovControl;
+    PendingBuffersMap mPendingBuffersMap;
+    bool m_bInSensorQCFA;
+    bool mbIsSWMFNRCapture;
+    bool isSecureMode() {return m_bIsSecureMode;}
+    QCamera3ProcessingChannel *mZSLChannel; //Interface ptr for actual ZSL channel.
+    QCamera3MultiRawChannel *mMultiRawChannel;
+    bool m_bMultiRawRequest;
 private:
     uint32_t mFirstFrameNumberInBatch;
     camera3_stream_t mDummyBatchStream;
@@ -610,6 +752,25 @@ private:
     uint32_t mLdafCalib[2];
     int32_t mLastCustIntentFrmNum;
     CameraMetadata  mCachedMetadata;
+
+    bool cacheMetaIfNeeded(
+             mm_camera_super_buf_t *metadata_buf, uint32_t frame_number);
+    bool isTotalMetaReceivedForFrame(
+            uint32_t frame_number, PendingRequestInfo *request);
+    char *getUINT8Ptr(uint32_t cameraId);
+    void releasePhysicalId(const char **physicalId, uint32_t size);
+    camera_metadata_t *getPhysicalMeta(const mm_camera_super_buf_t *metadata,
+                PendingRequestInfo *request, bool dummyMeta,
+                cam_sync_type_t sync_type = CAM_TYPE_MAIN);
+    void  allocateAndinitializeMetadata(camera3_capture_result *result,
+                PendingRequestInfo *request);
+    void releasePhysicalMetadata(const camera_metadata_t **meta, uint32_t num_of_meta);
+    void releaseCachedMeta(
+                PendingRequestInfo *request, QCamera3Channel *meta_channel);
+    bool shouldWaitForFrame(
+                PendingRequestInfo *request, mm_camera_super_buf_t *cur_meta,
+                uint32_t cur_frame_number, uint32_t &pendingFor);
+    bool checkIfMetaDropped(PendingRequestInfo *request);
 
     static const QCameraMap<camera_metadata_enum_android_control_effect_mode_t,
             cam_effect_mode_type> EFFECT_MODES_MAP[];
@@ -665,7 +826,7 @@ private:
     bool mIsMainCamera;
     uint8_t mLinkedCameraId;
     QCamera3HeapMemory *m_pDualCamCmdHeap;
-    cam_dual_camera_cmd_info_t *m_pDualCamCmdPtr;
+    cam_dual_camera_cmd_info_t *m_pDualCamCmdPtr[MM_CAMERA_MAX_CAM_CNT];
     cam_sync_related_sensors_event_info_t m_relCamSyncInfo;
     Mutex mFlushLock;
     bool m_bSensorHDREnabled;
@@ -673,12 +834,51 @@ private:
     uint8_t mCurrentSceneMode;
     bool m_bOfflineIsp;
 
+    //for multiframe process capture
+    bool mbIsMultiFrameCapture;
+    uint8_t mMultiFrameCaptureCount;
+
     // for quad cfa
     bool m_bQuadraCfaSensor;
     uint8_t mQuadraCfaStage;
     bool m_bQuadraSizeConfigured;
     int8_t m_ppChannelCnt;
-    camera3_stream_configuration_t mStreamList;
+
+    typedef struct {
+        camera3_stream_configuration_t streamList;
+        uint32_t *usage;
+    }stream_configuration_t;
+
+    stream_configuration_t mStreamList;
+    pthread_mutex_t mRemosaicLock;
+    pthread_mutex_t mRecoveryLock;
+
+    //UDCF
+    bool mDualCamera;
+    bool m_bNeedHalPP;
+    bool mBundledSnapshot;
+    uint32_t mActiveCameras;
+    uint32_t mMasterCamera;
+    cam_fallback_mode_t mFallbackMode;
+    bool mLPMEnable;
+    cam_rtb_msg_type_t mRTBStatus;
+    bool m_bIsSecureMode;
+    bool m_bStopPicChannel;
+
+    bool is_aux_configured = false;   //only for dualcamera usecase
+    bool is_main_configured = false;  //only for dual camera usecase
+    bool is_logical_configured = false; //only for dual camera usecase
+
+    zsl_stream_type_t mHALZSL;
+    bool mFlashNeeded;
+
+    //for multi frame raw capture
+    uint8_t mMultiFrameRAWCaptureCount;
+
+    //quadra
+    camera3_capture_request_t **quad_req;
+    bool m_bRecoveryDone;
+    CameraMetadata mSavedParams;
 };
 
 }; // namespace qcamera

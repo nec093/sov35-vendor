@@ -71,7 +71,9 @@ public:
                          cam_is_type_t is_type,
                          uint32_t batchSize,
                          hal3_stream_cb_routine stream_cb,
-                         void *userdata);
+                         void *userdata,
+                         bool isSecureMode,
+                         bool bNeedBundling = false);
     virtual int32_t bufDone(uint32_t index);
     virtual int32_t cancelBuffer(uint32_t index);
     virtual int32_t bufRelease(int32_t index);
@@ -95,11 +97,15 @@ public:
     int32_t mapBuf(uint8_t buf_type, uint32_t buf_idx,
             int32_t plane_idx, int fd, void *buffer, size_t size);
     int32_t unmapBuf(uint8_t buf_type, uint32_t buf_idx, int32_t plane_idx);
-    int32_t setParameter(cam_stream_parm_buffer_t &param);
+    int32_t setParameter(cam_stream_parm_buffer_t &param,
+            uint32_t cam_type = CAM_TYPE_MAIN);
     cam_stream_info_t* getStreamInfo() const {return mStreamInfo; };
 
     static void releaseFrameData(void *data, void *user_data);
     int32_t timeoutFrame(int32_t bufIdx);
+    bool isDualStream(){return mDualStream;};
+    void initDCSettings();
+    void switchMaster(uint32_t masterCam);
 
 private:
     uint32_t mCamHandle;
@@ -175,6 +181,8 @@ private:
 
     static const char* mStreamNames[CAM_STREAM_TYPE_MAX];
     void flushFreeBatchBufQ();
+    bool mDualStream;
+    uint32_t mMasterCam;
 };
 
 }; // namespace qcamera

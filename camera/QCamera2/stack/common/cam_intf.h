@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -33,6 +33,7 @@
 // System dependencies
 #include <string.h>
 #include <media/msmb_isp.h>
+#include <stdbool.h>
 
 // Camera dependencies
 #include "cam_types.h"
@@ -131,7 +132,7 @@ typedef struct {
     cam_sync_mechanism_t sync_mechanism;
     cam_sync_type_t type;
     cam_sync_mode_t mode;
-    cam_3a_sync_mode_t sync_3a_mode;
+    cam_3a_sync_config_t sync_3a_config;
     cam_dual_camera_role_t cam_role;
     /* session Id of the other camera session
        Linking will be done with this session in the
@@ -139,6 +140,7 @@ typedef struct {
     uint32_t related_sensor_session_id;
     /*Low power mode type. Static info per device*/
     cam_dual_camera_perf_mode_t perf_mode;
+    uint8_t hal_lpm_control;
 } cam_dual_camera_bundle_info_t;
 typedef cam_dual_camera_bundle_info_t cam_sync_related_sensors_event_info_t;
 
@@ -368,6 +370,7 @@ typedef struct cam_capability{
     cam_dimension_t zzhdr_sizes_tbl[MAX_SIZES_CNT];         /* Table for ZZHDR supported sizes */
 
     uint32_t is_quadracfa_sensor;
+    uint32_t is_quadracfa_insensor;
     size_t supported_quadra_cfa_dim_cnt;              /* Number of resolutions in Quadra CFA mode */
     cam_dimension_t quadra_cfa_dim[MAX_SIZES_CNT];    /* Table for Quadra CFA supported sizes */
     cam_format_t quadra_cfa_format;                   /* Quadra CFA output format */
@@ -678,6 +681,7 @@ typedef struct cam_capability{
     /*Mono Stats support*/
     uint8_t is_mono_stats_suport;
     uint8_t is_depth_sensor;
+    cam_dimension_t single_isp_max_size;
 } cam_capability_t;
 
 typedef enum {
@@ -739,6 +743,7 @@ typedef struct {
         cam_request_frames frameRequest; /*do TNR process*/
         cam_perf_mode_t perf_mode;       /*request operational mode*/
         enum msm_vfe_frame_skip_pattern skipPattern;
+        bool isflush;
     };
 } cam_stream_parm_buffer_t;
 
@@ -791,8 +796,11 @@ typedef struct cam_stream_info {
     /* Image Stabilization type */
     cam_is_type_t is_type;
 
-    /* Signifies Secure stream mode */
+    /* Signifies whether stream is secure or not*/
     cam_stream_secure_t is_secure;
+
+    /* signifies mode of secure session */
+    cam_stream_secure_mode_t secure_mode;
 
     /* Preferred Performance mode */
     cam_perf_mode_t perf_mode;
@@ -847,8 +855,8 @@ typedef struct cam_stream_info {
     ((NULL != TABLE_PTR) ? \
     ((TABLE_PTR->data.member_variable_##META_ID[ 0 ] = DATA), \
     (TABLE_PTR->is_valid[META_ID] = 1), (0)) : \
-    ((LOGE("Unable to set metadata TABLE_PTR:%p META_ID:%d", \
-            TABLE_PTR, META_ID)), (-1))) \
+    (({LOGE("Unable to set metadata TABLE_PTR:%p META_ID:%d", \
+            TABLE_PTR, META_ID)}), (-1))) \
 
 #define ADD_SET_PARAM_ENTRY_TO_BATCH_FOR_AUX(TABLE_PTR, AUX_TABLE_PTR, META_ID) \
     ((NULL != TABLE_PTR || (NULL != AUX_TABLE_PTR)) ? \
@@ -896,6 +904,9 @@ typedef struct cam_stream_info {
     } \
 }
 
+#define IS_META_VALID(TABLE_PTR, META_ID) ((NULL != TABLE_PTR) ? \
+                                             TABLE_PTR->is_valid[META_ID] : \
+                                             FALSE )
 /************************************
 * Custom parameter data definition
 *************************************/
@@ -1091,7 +1102,7 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_SET_VFE_COMMAND,              tune_cmd_t,                  1);
     INCLUDE(CAM_INTF_PARM_SET_PP_COMMAND,               tune_cmd_t,                  1);
     INCLUDE(CAM_INTF_PARM_MAX_DIMENSION,                cam_dimension_t,             1);
-    INCLUDE(CAM_INTF_PARM_RAW_DIMENSION,                cam_dimension_t,             1);
+    INCLUDE(CAM_INTF_PARM_RAW_DIMENSION,                cam_sensor_config_t,         1);
     INCLUDE(CAM_INTF_PARM_TINTLESS,                     int32_t,                     1);
     INCLUDE(CAM_INTF_PARM_WB_MANUAL,                    cam_manual_wb_parm_t,        1);
     INCLUDE(CAM_INTF_PARM_CDS_MODE,                     int32_t,                     1);
@@ -1170,8 +1181,6 @@ typedef struct {
     INCLUDE(CAM_INTF_PARM_HAL_BRACKETING_HDR,           cam_hdr_param_t,             1);
     INCLUDE(CAM_INTF_META_DC_LOW_POWER_ENABLE,          uint8_t,                     1);
     INCLUDE(CAM_INTF_META_DC_SAC_OUTPUT_INFO,           cam_sac_output_info_t,       1);
-    INCLUDE(CAM_INTF_META_HYBRID_AE,                    uint8_t,                     1);
-    INCLUDE(CAM_INTF_META_AF_SCENE_CHANGE,              uint8_t,                     1);
     INCLUDE(CAM_INTF_META_DC_IN_SNAPSHOT_PP_ZOOM_RANGE, uint8_t,                     1);
     INCLUDE(CAM_INTF_META_DC_BOKEH_MODE,                uint8_t,                     1);
     INCLUDE(CAM_INTF_PARM_FOV_COMP_ENABLE,              int32_t,                     1);
@@ -1186,6 +1195,11 @@ typedef struct {
     INCLUDE(CAM_INTF_PARAM_BOKEH_BLUR_LEVEL,            cam_rtb_blur_info_t,         1);
     INCLUDE(CAM_INTF_META_RTB_DATA,                     cam_rtb_msg_type_t,          1);
     INCLUDE(CAM_INTF_META_DC_CAPTURE,                   uint8_t,                     1);
+    INCLUDE(CAM_INTF_PARM_BOKEH_MODE,                   uint8_t,                     1);
+    INCLUDE(CAM_INTF_META_USERZOOM,                     cam_zoom_info_t,             1);
+    INCLUDE(CAM_INTF_META_TUNING_PARAMS,                tuning_params_t,             1);
+    INCLUDE(CAM_INTF_PARM_CLOSE_HINT,                   uint8_t,                     1);
+    INCLUDE(CAM_INTF_META_SEND_IMMEDIATELY,             uint8_t,                     1);
 } metadata_data_t;
 
 /* Update clear_metadata_buffer() function when a new is_xxx_valid is added to
@@ -1199,38 +1213,6 @@ typedef struct {
         uint8_t         is_reqd[CAM_INTF_PARM_MAX];
     };
     metadata_data_t data;
-    /*Tuning Data */
-    uint8_t is_tuning_params_valid;
-    tuning_params_t tuning_params;
-
-    /* Mobicat Params */
-    uint8_t is_mobicat_aec_params_valid;
-    cam_3a_params_t mobicat_aec_params;
-
-    /* Stats 3A Debug Params */
-    uint8_t is_statsdebug_ae_params_valid;
-    cam_ae_exif_debug_t statsdebug_ae_data;
-
-    uint8_t is_statsdebug_awb_params_valid;
-    cam_awb_exif_debug_t statsdebug_awb_data;
-
-    uint8_t is_statsdebug_af_params_valid;
-    cam_af_exif_debug_t statsdebug_af_data;
-
-    uint8_t is_statsdebug_asd_params_valid;
-    cam_asd_exif_debug_t statsdebug_asd_data;
-
-    uint8_t is_statsdebug_stats_params_valid;
-    cam_stats_buffer_exif_debug_t statsdebug_stats_buffer_data;
-
-    uint8_t is_statsdebug_bestats_params_valid;
-    cam_bestats_buffer_exif_debug_t statsdebug_bestats_buffer_data;
-
-    uint8_t is_statsdebug_bhist_params_valid;
-    cam_bhist_buffer_exif_debug_t statsdebug_bhist_data;
-
-    uint8_t is_statsdebug_3a_tuning_params_valid;
-    cam_q3a_tuning_info_t statsdebug_3a_tuning_data;
 } metadata_buffer_t;
 
 typedef metadata_buffer_t parm_buffer_t;
@@ -1245,23 +1227,6 @@ static inline void clear_metadata_buffer(metadata_buffer_t *meta)
 {
     if (meta) {
       memset(meta->is_valid, 0, CAM_INTF_PARM_MAX);
-      meta->is_tuning_params_valid = 0;
-      meta->is_mobicat_aec_params_valid = 0;
-      meta->is_statsdebug_ae_params_valid = 0;
-      meta->is_statsdebug_awb_params_valid = 0;
-      meta->is_statsdebug_af_params_valid = 0;
-      meta->is_statsdebug_asd_params_valid = 0;
-      meta->is_statsdebug_stats_params_valid = 0;
-      meta->is_statsdebug_bestats_params_valid = 0;
-      meta->is_statsdebug_bhist_params_valid = 0;
-      meta->is_statsdebug_3a_tuning_params_valid = 0;
-      /* tuning parameter sizes are never gets zero.
-       * It gets overwritten when it populated
-       * But we can't reply and make decision based on that
-       */
-      meta->tuning_params.tuning_sensor_data_size = 0;
-      meta->tuning_params.tuning_vfe_data_size = 0;
-      meta->tuning_params.tuning_mod1_stats_data_size = 0;
     }
 }
 

@@ -1,4 +1,5 @@
-/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -52,6 +53,9 @@
 #define CEILING4(X)  (((X) + 0x0003) & 0xFFFC)
 #define CEILING2(X)  (((X) + 0x0001) & 0xFFFE)
 
+#define IS_VALID_PTR(P) (P != NULL)
+#define IS_EQUAL(X,Y) (X == Y)
+
 #define MAX_ZOOMS_CNT 91
 #define ZOOM_MIN 4096        // min zoom value: 1x
 #define ZOOM_MAX 4096 * 8 // max zoom value: 8x
@@ -85,7 +89,7 @@
 #define MAX_AF_STATS_DATA_SIZE  1000
 #define MAX_ASD_STATS_DATA_SIZE 1000
 
-#define MAX_CAPTURE_BATCH_NUM 32
+#define MAX_CAPTURE_BATCH_NUM 120
 
 #define TUNING_DATA_VERSION        6
 #define TUNING_SENSOR_DATA_MAX     0x10000 /*(need value from sensor team)*/
@@ -140,15 +144,24 @@
 #define EXIF_IMAGE_DESCRIPTION_SIZE 100
 
 #define MAX_INFLIGHT_REQUESTS  6
-#define MAX_INFLIGHT_BLOB      5
+
+#define MAX_PIPELINE_DEPTH 6
+#ifdef HAS_LOW_RAM
+#define MAX_INFLIGHT_BLOB      MAX_INFLIGHT_REQUESTS - 2
+#else
+#define MAX_INFLIGHT_BLOB      MAX_INFLIGHT_REQUESTS
+#endif
 #define MIN_INFLIGHT_REQUESTS  3
 #define MIN_INFLIGHT_60FPS_REQUESTS (6)
 #define MAX_INFLIGHT_REPROCESS_REQUESTS 1
 #define MAX_INFLIGHT_HFR_REQUESTS (48)
 #define MIN_INFLIGHT_HFR_REQUESTS (40)
+#define MAX_INFLIGHT_EIS_REQUESTS  10
 
-// Max allowed video buffer count for all cases
 #define MAX_VIDEO_BUFFERS 24
+#define MAX_VIDEO_VENDOR_EIS_BUFFERS 42
+#define MAX_DUAL_CAM_MUXER_BUF 3
+
 // Max allowed video buffer count for 30fps
 #define MAX_30FPS_VIDEO_BUFFERS 18
 
@@ -177,6 +190,8 @@
 /*reprocess pipeline stages are pproc and jpeg */
 #define MAX_REPROCESS_PIPELINE_STAGES 2
 
+#define MAX_REPROCESS_POSTCPP_BUFCNT 1
+
 /* Defines the number of rows in the color correction matrix (CCM) */
 #define AWB_NUM_CCM_ROWS (3)
 
@@ -191,6 +206,15 @@
 #define CAM_FREERUN_IDX 0xFFFFFFFF
 
 #define DUALCAM_CAMERA_CNT 2
+
+#define MAX_SECURE_BUFFERS  3
+
+#define CAM_GRALLOC_USAGE_PRIVATE_HEIF (UINT32_C(1) << 27)
+#define IS_USAGE_HEIF(usage) (((usage) & (CAM_GRALLOC_USAGE_PRIVATE_HEIF)) \
+        == (CAM_GRALLOC_USAGE_PRIVATE_HEIF))
+
+#define FRAME_META_INCORRECT 2
+
 
 typedef uint64_t cam_feature_mask_t;
 
@@ -438,6 +462,7 @@ typedef enum {
 typedef enum {
     CAM_FORMAT_SUBTYPE_HDR_STATS,
     CAM_FORMAT_SUBTYPE_PDAF_STATS,
+    CAM_FORMAT_SUBTYPE_FLICKER_STATS,
     CAM_FORMAT_SUBTYPE_MAX
 } cam_sub_format_type_t;
 
@@ -590,6 +615,7 @@ typedef struct {
     uint32_t min_stride;
     uint32_t min_scanline;
     cam_offset_info_t offset_info;
+    uint32_t usage;
 } cam_padding_info_t;
 
 typedef struct {
@@ -633,6 +659,13 @@ typedef enum {
     CAM_EXP_PRIORITY,
     CAM_DEFAULT_OFF,
 } cam_priority_mode_t;
+
+typedef enum {
+    CAM_MANUAL_WB_OFF,
+    CAM_MANUAL_WB_CCT,
+    CAM_MANUAL_WB_GAINS,
+} cam_manual_wb_mode_t;
+
 
 typedef enum {
     CAM_HFR_MODE_OFF,
@@ -954,6 +987,7 @@ typedef enum {
     CAM_SENSOR_HDR_IN_SENSOR = 1,
     CAM_SENSOR_HDR_ZIGZAG,
     CAM_SENSOR_HDR_STAGGERED,
+    CAM_SENSOR_3EXP_HDR_IN_SENSOR,
     CAM_SENSOR_HDR_MAX,
 } cam_sensor_hdr_type_t;
 
@@ -1016,6 +1050,7 @@ typedef enum {
     IS_TYPE_GA_DIS,
     IS_TYPE_EIS_2_0,
     IS_TYPE_EIS_3_0,
+    IS_TYPE_VENDOR_EIS,
     IS_TYPE_MAX
 } cam_is_type_t;
 
@@ -1028,6 +1063,12 @@ typedef enum {
   NON_SECURE,
   SECURE
 } cam_stream_secure_t;
+
+typedef enum {
+  SECURE_INVALID,
+  SECURE_SLAVE,
+  SECURE_MASTER,
+} cam_stream_secure_mode_t;
 
 #define CAM_REPROCESS_MASK_TYPE_WNR (1<<0)
 
@@ -1653,6 +1694,7 @@ typedef enum {
 
 typedef struct {
     float exp_time;
+    float real_gain;
     int32_t iso_value;
     uint32_t flash_needed;
     uint32_t settled;
@@ -1818,6 +1860,11 @@ typedef enum {
     CAM_3A_SYNC_ALGO_CTRL,/* Algorithm updated cameras directly */
 } cam_3a_sync_mode_t;
 
+typedef struct {
+    cam_3a_sync_mode_t sync_mode_stats;
+    cam_3a_sync_mode_t sync_mode_af;
+} cam_3a_sync_config_t;
+
 typedef enum {
     OIS_MODE_INACTIVE,
     OIS_MODE_ACTIVE,
@@ -1845,6 +1892,7 @@ typedef struct {
     cam_frame_margins_t margins[MAX_NUM_STREAMS];
     cam_dimension_t stream_sz_plus_margin[MAX_NUM_STREAMS]; /*stream sizes + margin*/
     uint8_t is_secure;
+    uint32_t topology;
 } cam_stream_size_info_t;
 
 typedef enum {
@@ -2485,10 +2533,11 @@ typedef enum {
     CAM_INTF_META_DC_CAPTURE,
     /* Enable/Disable AF fine scan */
     CAM_INTF_PARM_SKIP_FINE_SCAN,
-    /* Whether to enable hybrid ae mode */
-    CAM_INTF_META_HYBRID_AE,
-    /* AF scene change */
-    CAM_INTF_META_AF_SCENE_CHANGE,
+    CAM_INTF_PARM_BOKEH_MODE,
+    CAM_INTF_META_USERZOOM,
+    CAM_INTF_META_TUNING_PARAMS,
+    CAM_INTF_PARM_CLOSE_HINT,
+    CAM_INTF_META_SEND_IMMEDIATELY,
     CAM_INTF_PARM_MAX
 } cam_intf_parm_type_t;
 
@@ -2725,6 +2774,9 @@ typedef struct {
 #define CAM_QTI_FEATURE_RTB             (((cam_feature_mask_t)1UL)<<45)
 #define CAM_QCOM_FEATURE_LCAC           ((cam_feature_mask_t)1UL<<46)
 #define CAM_QTI_FEATURE_DEPTH_MAP       ((cam_feature_mask_t)1UL<<47)
+#define CAM_QTI_FEATURE_MFPROC_PRECPP   ((cam_feature_mask_t)1UL<<48)
+#define CAM_QTI_FEATURE_MFPROC_POSTCPP   ((cam_feature_mask_t)1UL<<49)
+#define CAM_QTI_FEATURE_VENDOR_EIS      ((cam_feature_mask_t)1UL<<50)
 #define CAM_QCOM_FEATURE_PP_SUPERSET    (CAM_QCOM_FEATURE_DENOISE2D|CAM_QCOM_FEATURE_CROP|\
                                          CAM_QCOM_FEATURE_ROTATION|CAM_QCOM_FEATURE_SHARPNESS|\
                                          CAM_QCOM_FEATURE_SCALE|CAM_QCOM_FEATURE_CAC|\
@@ -2732,7 +2784,7 @@ typedef struct {
                                          CAM_QCOM_FEATURE_LLVD|CAM_QCOM_FEATURE_QUADRA_CFA)
 
 #define CAM_QCOM_FEATURE_PP_PASS_1      CAM_QCOM_FEATURE_PP_SUPERSET
-#define CAM_QCOM_FEATURE_PP_PASS_2      CAM_QCOM_FEATURE_SCALE | CAM_QCOM_FEATURE_CROP;
+#define CAM_QCOM_FEATURE_PP_PASS_2      (CAM_QCOM_FEATURE_SCALE | CAM_QCOM_FEATURE_CROP)
 
 typedef struct {
    cam_rotation_t rotation;         /* jpeg rotation */
@@ -3112,7 +3164,30 @@ typedef enum {
     CAM_HAL_PP_TYPE_DUAL_FOV,            // dual camera Wide+Tele Dual FOV blending
     CAM_HAL_PP_TYPE_BOKEH,               // dual camera Wide+Tele Snapshot Bokeh
     CAM_HAL_PP_TYPE_CLEARSIGHT,          // dual camera Bayer+Mono Clearsight
+    CAM_HAL_PP_TYPE_SAT,
     CAM_HAL_PP_TYPE_MAX
 } cam_hal_pp_type_t;
+
+typedef enum {
+    CAM_HAL3_JPEG_TYPE_NONE = 0,        // default undefined type
+    CAM_HAL3_JPEG_TYPE_MAIN,            // MAIN image
+    CAM_HAL3_JPEG_TYPE_BOKEH,           // BOKEH image
+    CAM_HAL3_JPEG_TYPE_AUX,             // AUX image
+    CAM_HAL3_JPEG_TYPE_DEPTH,           // DEPTH image
+    CAM_HAL3_JPEG_TYPE_FUSION,
+    CAM_HAL3_JPEG_TYPE_MAX
+} cam_hal3_JPEG_type_t;
+
+typedef struct {
+    int32_t width;
+    int32_t height;
+    int32_t opClock;
+} cam_sensor_config_t;
+
+typedef enum {
+    CAM_HAL3_ZSL_TYPE_NONE,
+    CAM_HAL3_ZSL_TYPE_SNAPSHOT,
+    CAM_HAL3_ZSL_TYPE_CALLBACK
+}zsl_stream_type_t;
 
 #endif /* __QCAMERA_TYPES_H__ */

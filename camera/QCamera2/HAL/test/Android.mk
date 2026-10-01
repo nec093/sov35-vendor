@@ -23,7 +23,7 @@ ifneq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) >= 18 ))" )))
 
 LOCAL_SHARED_LIBRARIES += \
     libmedia_native
-ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
+ifneq ($(TARGET_KERNEL_VERSION),$(filter $(TARGET_KERNEL_VERSION),3.18 4.4 4.9))
 LOCAL_SHARED_LIBRARIES += libion
 endif
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
@@ -31,15 +31,20 @@ LOCAL_CFLAGS += -DUSE_JB_MR1
 
 endif
 
-LOCAL_HAL_TOP := $(LOCAL_PATH)/../../..
+ifneq ($(TARGET_KERNEL_VERSION),$(filter $(TARGET_KERNEL_VERSION),3.18 4.4 4.9))
 LOCAL_C_INCLUDES += \
         system/core/libion/kernel-headers \
         system/core/libion/include
+endif
+
+LOCAL_HAL_TOP := $(LOCAL_PATH)/../../..
 
 LOCAL_C_INCLUDES += \
     external/skia/include/core \
     external/skia/include/images \
     $(TARGET_OUT_HEADERS)/qcom/display \
+    frameworks/av/include/media/stagefright \
+    frameworks/native/include/media/openmax \
     $(LOCAL_HAL_TOP)/QCamera2/stack/common \
     $(LOCAL_HAL_TOP)/QCamera2/stack/mm-camera-interface/inc \
     $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ/usr/include
@@ -58,7 +63,9 @@ ifeq (1,$(filter 1,$(shell echo "$$(( $(PLATFORM_SDK_VERSION) >= 20 ))" )))
 
 LOCAL_CFLAGS += -DUSE_SDK_20_OR_HIGHER
 
+ifeq ($(TARGET_USES_AOSP),true)
 LOCAL_CFLAGS += -DVANILLA_HAL
+endif
 
 endif
 

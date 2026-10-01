@@ -113,12 +113,15 @@ typedef struct {
 //Min buffer requirement for B+M Clearsight fusion
 #define MIN_CLEARSIGHT_BUFS 3
 
+#define NUM_BOKEH_OUTPUT 3    //Bokeh image, main image and depth map
+
 /*For noraml recording usecase the number of video buffers
 are 9 and preivew buffers are 5. In the special case
 same buffer will be used for both preview and video, therefore
 keeping the buffer count to 15.*/
 
 #define VIDEO_FB_BUF_COUNT 15 //Number of buffers for video face beautification.
+
 
 typedef enum {
     QCAMERA_NOTIFY_CALLBACK,
@@ -412,7 +415,7 @@ private:
     void dumpFrameToFile(QCameraStream *stream,
             mm_camera_buf_def_t *frame, uint32_t dump_type, const char *misc = NULL);
     void dumpMetadataToFile(QCameraStream *stream,
-                            mm_camera_buf_def_t *frame,char *type);
+                            mm_camera_buf_def_t *frame,char *type,tuning_params_t *tuning_ptr);
     void releaseSuperBuf(mm_camera_super_buf_t *super_buf);
     void playShutter();
     void getThumbnailSize(cam_dimension_t &dim);

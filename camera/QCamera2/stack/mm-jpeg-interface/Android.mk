@@ -12,7 +12,7 @@ LOCAL_CFLAGS+= -D_ANDROID_ -DQCAMERA_REDEFINE_LOG
 
 LOCAL_CFLAGS += -Wall -Wextra -Werror -Wno-unused-parameter
 
-ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
+ifneq ($(TARGET_KERNEL_VERSION),$(filter $(TARGET_KERNEL_VERSION),3.18 4.4 4.9))
 LOCAL_C_INCLUDES += \
         system/core/libion/kernel-headers \
         system/core/libion/include
@@ -59,6 +59,7 @@ JPEG_PIPELINE_TARGET_LIST += msm8996
 JPEG_PIPELINE_TARGET_LIST += apq8098_latv
 JPEG_PIPELINE_TARGET_LIST += msm8998
 JPEG_PIPELINE_TARGET_LIST += sdm660
+JPEG_PIPELINE_TARGET_LIST += $(TRINKET)
 
 ifneq (,$(filter  $(JPEG_PIPELINE_TARGET_LIST),$(TARGET_BOARD_PLATFORM)))
     LOCAL_CFLAGS+= -DMM_JPEG_USE_PIPELINE
@@ -84,11 +85,11 @@ LOCAL_SHARED_LIBRARIES := libdl libcutils liblog libqomx_core libmmcamera_interf
 ifeq ($(strip $(LIB2D_ROTATION)),true)
     LOCAL_SHARED_LIBRARIES += libmmlib2d_interface
 endif
-ifneq (,$(filter $(strip $(SOMC_KERNEL_VERSION)),4.9 4.14))
+ifneq ($(TARGET_KERNEL_VERSION),$(filter $(TARGET_KERNEL_VERSION),3.18 4.4 4.9))
 LOCAL_SHARED_LIBRARIES += libion
 endif
 LOCAL_MODULE_TAGS := optional
-LOCAL_MODULE_PATH_32 := $(TARGET_OUT_VENDOR)/lib
+LOCAL_VENDOR_MODULE := true
 
 LOCAL_32_BIT_ONLY := $(BOARD_QTI_CAMERA_32BIT_ONLY)
 include $(BUILD_SHARED_LIBRARY)

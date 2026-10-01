@@ -1,3 +1,9 @@
+ifeq ($(PRODUCT_PLATFORM_SOD),true)
+
+# LineageOS has no SODP SRC_*_HAL_DIR: use the qcom-caf media/display HALs.
+SRC_MEDIA_HAL_DIR ?= $(call project-path-for,qcom-media)
+SRC_DISPLAY_HAL_DIR ?= $(call project-path-for,qcom-display)
+
 MM_V4L2_DRIVER_LIST += msm8960
 MM_V4L2_DRIVER_LIST += msm8974
 MM_V4L2_DRIVER_LIST += msm8226
@@ -17,6 +23,7 @@ MM_V4L2_DRIVER_LIST += msm8953
 MM_V4L2_DRIVER_LIST += apq8098_latv
 MM_V4L2_DRIVER_LIST += msm8998
 MM_V4L2_DRIVER_LIST += sdm660
+MM_V4L2_DRIVER_LIST += $(TRINKET)
 
 ifneq (,$(filter $(MM_V4L2_DRIVER_LIST),$(TARGET_BOARD_PLATFORM)))
   ifneq ($(strip $(USE_CAMERA_STUB)),true)
@@ -24,4 +31,6 @@ ifneq (,$(filter $(MM_V4L2_DRIVER_LIST),$(TARGET_BOARD_PLATFORM)))
       include $(call all-subdir-makefiles)
     endif
   endif
+endif
+
 endif

@@ -55,6 +55,9 @@
 #define MM_CAMERA_HANDLE_SHIFT_MASK       16
 #define MM_CAMERA_HANDLE_BIT_MASK         0x0000ffff
 
+#define IS_BUFFER_ERROR(x) (((x) & V4L2_BUF_FLAG_ERROR) == V4L2_BUF_FLAG_ERROR)
+
+
 typedef enum {
     MM_CAMERA_TYPE_MAIN       = CAM_TYPE_MAIN,
     MM_CAMERA_TYPE_AUX        = CAM_TYPE_AUX,
@@ -344,6 +347,7 @@ typedef enum {
     MM_CAMERA_SUPER_BUF_PRIORITY_FOCUS,
     MM_CAMERA_SUPER_BUF_PRIORITY_EXPOSURE_BRACKETING,
     MM_CAMERA_SUPER_BUF_PRIORITY_LOW,/* Bundled metadata frame may not match*/
+    MM_CAMERA_SUPER_BUF_PRIORITY_MATCH_META,/* For HAL3*/
     MM_CAMERA_SUPER_BUF_PRIORITY_MAX
 } mm_camera_super_buf_priority_t;
 
@@ -939,6 +943,16 @@ typedef struct {
     int32_t (*handle_frame_sync_cb) (uint32_t camera_handle,
             uint32_t ch_id, uint32_t stream_id,
             mm_camera_cb_req_type req_type);
+
+   /** set_frame_sync: function to set channel frame sync
+     *    @camera_handle : camer handler
+     *    @ch_id : channel handler
+     *    @sync_value : enable/disable frame sync
+     *  Return value: 0 -- success
+     *                -1 -- failure
+     **/
+    int32_t (*set_frame_sync) (uint32_t camera_handle,
+              uint32_t ch_id, uint32_t sync_value);
 } mm_camera_ops_t;
 
 /** mm_camera_vtbl_t: virtual table for camera operations
@@ -973,6 +987,7 @@ int32_t mm_stream_calc_offset_post_view(cam_stream_info_t *stream_info,
 
 int32_t mm_stream_calc_offset_snapshot(cam_format_t fmt,
         cam_dimension_t *dim,
+        cam_stream_type_t type,
         cam_padding_info_t *padding,
         cam_stream_buf_plane_info_t *buf_planes);
 
@@ -981,8 +996,8 @@ int32_t mm_stream_calc_offset_raw(cam_format_t fmt,
         cam_padding_info_t *padding,
         cam_stream_buf_plane_info_t *buf_planes);
 
-int32_t mm_stream_calc_offset_video(cam_format_t fmt,
-        cam_dimension_t *dim,
+int32_t mm_stream_calc_offset_video(cam_stream_info_t *stream_info,
+        cam_padding_info_t *padding,
         cam_stream_buf_plane_info_t *buf_planes);
 
 int32_t mm_stream_calc_offset_metadata(cam_dimension_t *dim,
@@ -1018,6 +1033,15 @@ uint32_t get_main_camera_handle(uint32_t handle);
 
 /*Get Auxilary camera handle for camera/channel/stream*/
 uint32_t get_aux_camera_handle(uint32_t handle);
+
+/*Get Primary camera idx */
+uint32_t get_main_camera_idx(uint32_t camera_id);
+
+/*Get Auxilary camera idx */
+uint32_t get_aux_camera_idx(uint32_t camera_id);
+
+uint32_t get_phys_handle(uint32_t phys_camera_id,
+    uint32_t logical_camera_id, uint32_t logical_handle);
 
 /*Validate 2 handle if it is belong to same instance of camera/channel/stream*/
 uint8_t validate_handle(uint32_t src_handle, uint32_t handle);

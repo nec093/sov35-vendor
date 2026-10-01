@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -305,12 +305,13 @@ int32_t QCamera3Memory::getBufDef(const cam_frame_len_offset_t &offset,
  *
  * RETURN     : none
  *==========================================================================*/
-QCamera3HeapMemory::QCamera3HeapMemory(uint32_t maxCnt)
+QCamera3HeapMemory::QCamera3HeapMemory(uint32_t maxCnt, bool isSecure)
     : QCamera3Memory()
 {
     mMaxCnt = MIN(maxCnt, MM_CAMERA_MAX_NUM_FRAMES);
     for (uint32_t i = 0; i < mMaxCnt; i ++)
         mPtr[i] = NULL;
+    m_bIsSecureMode = isSecure;
 }
 
 /*===========================================================================
@@ -368,6 +369,16 @@ int QCamera3HeapMemory::allocOneBuffer(QCamera3MemInfo &memInfo,
     allocData.heap_id_mask = heap_id;
     allocData.flags = ION_FLAG_CACHED;
 
+    if (m_bIsSecureMode) {
+        LOGD("Allocate secure buffer\n");
+        if (QCameraCommon::is_target_SDM450())
+            allocData.heap_id_mask = ION_HEAP(ION_CP_MM_HEAP_ID);
+        else
+            allocData.heap_id_mask = ION_HEAP(ION_SECURE_DISPLAY_HEAP_ID);
+        allocData.flags = ION_FLAG_SECURE | ION_FLAG_CP_CAMERA;
+        allocData.align = 2097152; // 2 MiB alignment to be able to protect later
+        allocData.len = (allocData.len + 2097152U) & (~2097152U);
+    }
 
 #ifndef TARGET_ION_ABI_VERSION
     rc = ioctl(main_ion_fd, ION_IOC_ALLOC, &allocData);
@@ -654,6 +665,9 @@ int QCamera3HeapMemory::allocate(size_t size)
             goto ALLOC_FAILED;
         }
 
+        if (m_bIsSecureMode) {
+            continue;
+        }
         void *vaddr = mmap(NULL,
                     mMemInfo[i].size,
                     PROT_READ | PROT_WRITE,
@@ -663,8 +677,9 @@ int QCamera3HeapMemory::allocate(size_t size)
             deallocOneBuffer(mMemInfo[i]);
             LOGE("mmap failed for buffer %d", i);
             goto ALLOC_FAILED;
-        } else
+        } else {
             mPtr[i] = vaddr;
+        }
     }
     if (rc == 0)
         mBufferCount = mMaxCnt;
@@ -673,8 +688,10 @@ int QCamera3HeapMemory::allocate(size_t size)
 
 ALLOC_FAILED:
     for (uint32_t j = 0; j < i; j++) {
-        munmap(mPtr[j], mMemInfo[j].size);
-        mPtr[j] = NULL;
+        if (mPtr[j] != NULL) {
+            munmap(mPtr[j], mMemInfo[j].size);
+            mPtr[j] = NULL;
+        }
         deallocOneBuffer(mMemInfo[j]);
     }
     return NO_MEMORY;
@@ -694,6 +711,7 @@ ALLOC_FAILED:
  *==========================================================================*/
 int QCamera3HeapMemory::allocateOne(size_t size)
 {
+    void *vaddr = NULL;
 #ifndef TARGET_ION_ABI_VERSION
     unsigned int heap_id_mask = 0x1 << ION_IOMMU_HEAP_ID;
 #else
@@ -716,7 +734,10 @@ int QCamera3HeapMemory::allocateOne(size_t size)
         return NO_MEMORY;
     }
 
-    void *vaddr = mmap(NULL,
+    if (m_bIsSecureMode) {
+        goto ALLOC_DONE;
+    }
+    vaddr = mmap(NULL,
                 mMemInfo[mBufferCount].size,
                 PROT_READ | PROT_WRITE,
                 MAP_SHARED,
@@ -725,9 +746,11 @@ int QCamera3HeapMemory::allocateOne(size_t size)
         deallocOneBuffer(mMemInfo[mBufferCount]);
         LOGE("mmap failed for buffer");
         return NO_MEMORY;
-    } else
+    } else {
         mPtr[mBufferCount] = vaddr;
+    }
 
+ALLOC_DONE:
     if (rc == 0)
         mBufferCount += 1;
 
@@ -821,13 +844,14 @@ int QCamera3HeapMemory::getMatchBufIndex(void * /*object*/)
  *
  * RETURN     : none
  *==========================================================================*/
-QCamera3GrallocMemory::QCamera3GrallocMemory(uint32_t startIdx)
-        : QCamera3Memory(), mStartIdx(startIdx)
+QCamera3GrallocMemory::QCamera3GrallocMemory(uint32_t startIdx, bool isSecure)
+        : QCamera3Memory(), mStartIdx(startIdx), mMasterCam(CAM_TYPE_MAIN)
 {
     for (int i = 0; i < MM_CAMERA_MAX_NUM_FRAMES; i ++) {
         mBufferHandle[i] = NULL;
         mPrivateHandle[i] = NULL;
     }
+    m_bIsSecureMode = isSecure;
 }
 
 /*===========================================================================
@@ -875,7 +899,7 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     }
 
     Mutex::Autolock lock(mLock);
-    if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES - 1 - mStartIdx)) {
+    if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES - mStartIdx)) {
         LOGE("Number of buffers %d greater than what's supported %d",
                  mBufferCount, MM_CAMERA_MAX_NUM_FRAMES - mStartIdx);
         return BAD_INDEX;
@@ -927,22 +951,27 @@ int QCamera3GrallocMemory::registerBuffer(buffer_handle_t *buffer,
     mMemInfo[idx].handle = ion_info_fd.fd;
 #endif //TARGET_ION_ABI_VERSION
 
+    mBufferCount++;
+
+    if (m_bIsSecureMode) {
+        goto end;
+    }
     vaddr = mmap(NULL,
             mMemInfo[idx].size,
             PROT_READ | PROT_WRITE,
             MAP_SHARED,
             mMemInfo[idx].fd, 0);
     if (vaddr == MAP_FAILED) {
+        LOGE("mmap failed");
         /* we have to close the main_ion_fd when mmap fails*/
         close(mMemInfo[idx].main_ion_fd);
         mMemInfo[idx].main_ion_fd = -1;
         mMemInfo[idx].handle = 0;
         ret = NO_MEMORY;
+        goto end;
     } else {
         mPtr[idx] = vaddr;
-        mBufferCount++;
     }
-
 end:
     LOGD("X ");
     return ret;
@@ -1235,7 +1264,6 @@ int QCamera3GrallocMemory::cacheOps(uint32_t index, unsigned int cmd)
                needToInvalidate = true;
         }
     }
-
 #ifndef TARGET_ION_ABI_VERSION
     LOGD("needToInvalidate %d buf idx %d", needToInvalidate, index);
     if(((cmd == ION_IOC_INV_CACHES) || (cmd == ION_IOC_CLEAN_INV_CACHES))
@@ -1295,14 +1323,18 @@ int QCamera3GrallocMemory::getMatchBufIndex(void *object)
 int QCamera3GrallocMemory::getFreeIndexLocked()
 {
     int index = -1;
+    //Main session : 0 (infact maxHeapBuffers) to MM_CAMERA_MAX_NUM_FRAMES/2 -1
+    //Aux session  : MM_CAMERA_MAX_NUM_FRAMES/2 to MM_CAMERA_MAX_NUM_FRAMES -1
+    uint32_t startIdx =
+            (mMasterCam == CAM_TYPE_MAIN) ? mStartIdx : (mStartIdx + (MM_CAMERA_MAX_NUM_FRAMES/2));
 
-    if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES - 1)) {
+    if (mBufferCount >= (MM_CAMERA_MAX_NUM_FRAMES)) {
         LOGE("Number of buffers %d greater than what's supported %d",
              mBufferCount, MM_CAMERA_MAX_NUM_FRAMES);
         return index;
     }
 
-    for (size_t i = mStartIdx; i < MM_CAMERA_MAX_NUM_FRAMES; i++) {
+    for (size_t i = startIdx; i < MM_CAMERA_MAX_NUM_FRAMES; i++) {
         if (0 == mMemInfo[i].handle) {
             index = i;
             break;
@@ -1394,4 +1426,10 @@ void *QCamera3GrallocMemory::getBufferHandle(uint32_t index)
 
     return mBufferHandle[index];
 }
+
+void QCamera3GrallocMemory::switchMaster(uint32_t masterCam)
+{
+    mMasterCam = masterCam;
+}
+
 }; //namespace qcamera

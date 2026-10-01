@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -47,6 +47,10 @@
 #include "QCamera2HWI.h"
 #include "QCameraParameters.h"
 #include "QCameraTrace.h"
+
+#ifdef ENABLE_QC_BOKEH
+#include "dualcameraddm_wrapper.h"
+#endif //ENABLE_QC_BOKEH
 
 extern "C" {
 #include "mm_camera_dbg.h"
@@ -522,6 +526,8 @@ const char QCameraParameters::KEY_QC_LED_CALIBRATION[] = "led-calibration";
 // AF fine tune values
 const char QCameraParameters::KEY_QC_AF_FINETUNE[] = "finetune";
 const char QCameraParameters::KEY_QC_SUPPORTED_FINETUNE_MODES[] = "finetune-values";
+
+const char QCameraParameters::KEY_QC_DEPTH_MAP_SIZE[] = "depthmap-size";
 
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
@@ -1007,6 +1013,7 @@ QCameraParameters::QCameraParameters()
       m_bSensorHDREnabled(false),
       m_bRdiMode(false),
       m_bSecureMode(false),
+      m_eSecSessMode(SECURE_INVALID),
       m_bSecureModeUBWC(true),
       m_bAeBracketingEnabled(false),
       mFlashValue(CAM_FLASH_MODE_OFF),
@@ -1040,7 +1047,8 @@ QCameraParameters::QCameraParameters()
       mFallback(CAM_NO_FALLBACK),
       mAsymmetricSnapMode(false),
       mAsymmetricPreviewMode(false),
-      mDualCamType(DUAL_CAM_WIDE_TELE)
+      mDualCamType(DUAL_CAM_WIDE_TELE),
+      m_bBokehSnapEnabled(true)
 {
     char value[PROPERTY_VALUE_MAX];
     // TODO: may move to parameter instead of sysprop
@@ -1196,7 +1204,8 @@ QCameraParameters::QCameraParameters(const String8 &params)
     mFallback(CAM_NO_FALLBACK),
     mAsymmetricSnapMode(false),
     mAsymmetricPreviewMode(false),
-    mDualCamType(DUAL_CAM_WIDE_TELE)
+    mDualCamType(DUAL_CAM_WIDE_TELE),
+    m_bBokehSnapEnabled(true)
 {
     memset(&m_LiveSnapshotSize, 0, sizeof(m_LiveSnapshotSize));
     memset(&m_default_fps_range, 0, sizeof(m_default_fps_range));
@@ -1658,10 +1667,7 @@ int32_t QCameraParameters::setPictureSize(const QCameraParameters& params)
     int width, height;
     params.getPictureSize(&width, &height);
     int old_width, old_height;
-    if (getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
-        width = CAM_BOKEH_TELE_WIDTH;
-        height = CAM_BOKEH_TELE_HEIGHT;
-    }
+
     LOGH("Requested picture size %d x %d", width, height);
     CameraParameters::getPictureSize(&old_width, &old_height);
     LOGH("old picture size %d x %d", old_width, old_height);
@@ -3238,6 +3244,18 @@ int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
     if (bRequestedBokehMode != m_bBokehMode) {
          m_bBokehMode = bRequestedBokehMode;
          m_bNeedRestart = true;
+        if (ADD_SET_PARAM_ENTRY_TO_BATCH
+                (m_pParamBuf, CAM_INTF_PARM_BOKEH_MODE, m_bBokehMode)) {
+            return BAD_VALUE;
+        }
+        if (m_bBokehMode) {
+           char val[32];
+           int depthW = 0;
+           int depthH = 0;
+           getDepthMapSize(depthW, depthH);
+           snprintf(val, sizeof(val), "%dx%d", depthW, depthH);
+           updateParamEntry(KEY_QC_DEPTH_MAP_SIZE, val);
+        }
     }
     if (m_bBokehMode) {
         //Bokeh Mode set, set halpp type
@@ -3245,15 +3263,15 @@ int32_t QCameraParameters::setBokehMode(const QCameraParameters& params)
         mAsymmetricPreviewMode = true;
         m_bBokehMpoEnabled = params.getInt(KEY_QC_BOKEH_MPO_MODE);
         uint32_t requestedBlurLevel = params.getInt(KEY_QC_BOKEH_BLUR_VALUE);
-        if (requestedBlurLevel > 100) {
-            requestedBlurLevel = 100;
+        if (requestedBlurLevel > MAX_BLUR) {
+            requestedBlurLevel = MAX_BLUR;
         }
         if (m_bBokehBlurLevel != requestedBlurLevel) {
             cam_rtb_blur_info_t info;
             memset(&info, 0, sizeof(info));
             info.blur_level = requestedBlurLevel;
-            info.blur_min_value = 0;
-            info.blur_max_value = 100;
+            info.blur_min_value = MIN_BLUR;
+            info.blur_max_value = MAX_BLUR;
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf,
                     CAM_INTF_PARAM_BOKEH_BLUR_LEVEL, info)) {
                 LOGE("Failed to update table");
@@ -4633,6 +4651,9 @@ int32_t QCameraParameters::setNumOfSnapshot()
         if(getHalPPType() == CAM_HAL_PP_TYPE_NONE) {
             dualfov_snap_num = MM_CAMERA_MAX_CAM_CNT;
         }
+        if(getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) {
+            dualfov_snap_num = NUM_BOKEH_OUTPUT;
+        }
         dualfov_snap_num = (dualfov_snap_num == 0) ? 1 : dualfov_snap_num;
 
         set(KEY_QC_NUM_SNAPSHOT_PER_SHUTTER, (nBurstNum * nExpnum * dualfov_snap_num));
@@ -4715,8 +4736,8 @@ int32_t QCameraParameters::setNoDisplayMode(const QCameraParameters& params)
             m_bNoDisplayModeMain = false;
             m_bNoDisplayModeAux = true;
         } else {
-            m_bNoDisplayModeMain = true;
-            m_bNoDisplayModeAux = false;
+            m_bNoDisplayModeMain = m_pFovControl->isMainCamFovWider();
+            m_bNoDisplayModeAux = !m_bNoDisplayModeMain;
         }
         LOGH("Bokeh m_bNoDisplayModeMain = %d      m_bNoDisplayModeAux = %d",
                 m_bNoDisplayModeMain, m_bNoDisplayModeAux);
@@ -5220,6 +5241,14 @@ int32_t QCameraParameters::setSecureMode(const QCameraParameters& params)
         LOGD("Secure steam type is CAM_STREAM_TYPE_PREVIEW");
         mSecureStraemType = CAM_STREAM_TYPE_PREVIEW;
     }
+
+    if (isSecureMode())
+        if (QCameraCommon::is_target_SDM450())
+            m_eSecSessMode = SECURE_SLAVE;
+        else
+            m_eSecSessMode = SECURE_MASTER;
+    else
+        m_eSecSessMode = SECURE_INVALID;
 
     str = params.get(KEY_QC_SECURE_MODE_UBWC);
     prev_str = get(KEY_QC_SECURE_MODE_UBWC);
@@ -6723,20 +6752,14 @@ int32_t QCameraParameters::initDefaultParameters()
 
     // Change to enable App team to test Bokeh mode
     // Set min max values for Blur values (min: 0, max: 100, step: 1)
-    if (isDualCamera()) {
-        String8 minMaxValues = createMinMaxValuesString(0, 100, 1);
+    if (isDualCamAvailable()) {
+        String8 minMaxValues = createMinMaxValuesString(MIN_BLUR, MAX_BLUR, BLUR_STEP);
         set(KEY_QC_SUPPORTED_DEGREES_OF_BLUR, minMaxValues.string());
         set(KEY_QC_IS_BOKEH_MODE_SUPPORTED, 1);
         set(KEY_QC_IS_BOKEH_MPO_SUPPORTED, 1);
         set(KEY_QC_BOKEH_MODE, 0);
         set(KEY_QC_BOKEH_BLUR_VALUE, 0);
         set(KEY_QC_BOKEH_MPO_MODE, 0);
-        cam_dimension_t bokehPicSize = { CAM_BOKEH_TELE_WIDTH, CAM_BOKEH_TELE_HEIGHT };
-        String8 bokehPictureSizeValue = createSizesString(
-                &bokehPicSize, 1);
-        set(KEY_QC_BOKEH_PICTURE_SIZE, bokehPictureSizeValue.string());
-        LOGH("supported bokeh picture size: %s", bokehPictureSizeValue.string());
-
     } else {
         String8 minMaxValues = createMinMaxValuesString(0, 0, 0);
         set(KEY_QC_SUPPORTED_DEGREES_OF_BLUR, minMaxValues.string());
@@ -6951,13 +6974,9 @@ int32_t QCameraParameters::init(cam_capability_t *capabilities, mm_camera_vtbl_t
             &sessionId[m_pCapability->camera_index]);
 
     if (m_pFovControl) {
-        mDualCamType = (uint8_t)getDualCameraConfig(
+        mDualCamType = (uint8_t)QCameraCommon::getDualCameraConfig(
                 m_pCapability->main_cam_cap, m_pCapability->aux_cam_cap);
         m_pFovControl->setDualCameraConfig(mDualCamType);
-
-        if (isBayerMono()) {
-            m_defaultHalPPType = CAM_HAL_PP_TYPE_CLEARSIGHT;
-        }
     }
 
     char prop[PROPERTY_VALUE_MAX];
@@ -7649,9 +7668,18 @@ int32_t QCameraParameters::setSensorSnapshotHDR(const char *snapshotHDR)
             property_get("persist.vendor.camera.zzhdr.enable", zz_prop, "0");
             uint8_t zzhdr_enable = (uint8_t)atoi(zz_prop);
 
+            char exp3_hdr_prop[PROPERTY_VALUE_MAX];
+            memset(exp3_hdr_prop, 0, sizeof(exp3_hdr_prop));
+            property_get("persist.camera.3hdr.enable", exp3_hdr_prop, "0");
+            uint8_t exp3_hdr_enable = (uint8_t)atoi(exp3_hdr_prop);
+
+
             if (zzhdr_enable && (value != CAM_SENSOR_HDR_OFF)) {
                 value = CAM_SENSOR_HDR_ZIGZAG;
-                LOGH("%s: Overriding to ZZ HDR Mode", __func__);
+                LOGH("Overriding to ZZ HDR Mode");
+            }else if (exp3_hdr_enable && (value != CAM_SENSOR_HDR_OFF)) {
+                value = CAM_SENSOR_3EXP_HDR_IN_SENSOR;
+                LOGH("Overriding to 3EXP HDR IN SENSOR Mode");
             }
 
             if (ADD_SET_PARAM_ENTRY_TO_BATCH(m_pParamBuf, CAM_INTF_PARM_SENSOR_HDR, (cam_sensor_hdr_type_t)value)) {
@@ -10855,8 +10883,11 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
             cam_dimension_t video;
             getStreamDimension(CAM_STREAM_TYPE_VIDEO , video);
             getStreamDimension(CAM_STREAM_TYPE_PREVIEW, preview);
-            /* Disable UBWC for preview, though supported, to take advantage of CPP duplication*/
-            if (getRecordingHintValue() == true && (!mCommon.isVideoUBWCEnabled()) &&
+            // Disable UBWC for preview, 
+            // 1.Though supported for preview, to take advantage of CPP duplication
+            // 2.When Lowpower mode and Video UBWC set, since CPP supports only NV21/NV21_venus
+            if (getRecordingHintValue() == true && (!mCommon.isVideoUBWCEnabled()||
+                (isLowPowerMode() && mCommon.isVideoUBWCEnabled())) &&
                 (video.width == preview.width) &&
                 (video.height == preview.height)) {
 #if VENUS_PRESENT
@@ -10910,7 +10941,7 @@ int32_t QCameraParameters::getStreamFormat(cam_stream_type_t streamType,
         }
         break;
     case CAM_STREAM_TYPE_VIDEO:
-        if (isUBWCEnabled()) {
+        if (isUBWCEnabled() && !isLowPowerMode()) {
             if (mCommon.isVideoUBWCEnabled()) {
                 format = CAM_FORMAT_YUV_420_NV12_UBWC;
             } else {
@@ -11064,6 +11095,8 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
 {
     int32_t ret = NO_ERROR;
     memset(&dim, 0, sizeof(cam_dimension_t));
+    int32_t ispMaxWidth = m_pCapability->single_isp_max_size.width;
+    int32_t ispMaxHeight = m_pCapability->single_isp_max_size.height;
 
     switch (streamType) {
     case CAM_STREAM_TYPE_PREVIEW:
@@ -11074,6 +11107,7 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         getPreviewSize(&dim.width, &dim.height);
         break;
     case CAM_STREAM_TYPE_SNAPSHOT:
+
         if (isPostProcScaling()) {
             getMaxPicSize(dim);
         } else if (getRecordingHintValue()) {
@@ -11084,6 +11118,7 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
         }
         if (isDCmAsymmetricSnapMode()) {
             int32_t supportedWidth = 0, supportedHeight = 0;
+
             if (cam_type & MM_CAMERA_TYPE_MAIN) {
                 supportedWidth = m_pCapability->main_cam_cap->picture_sizes_tbl[0].width;
                 supportedHeight = m_pCapability->main_cam_cap->picture_sizes_tbl[0].height;
@@ -11093,21 +11128,19 @@ int32_t QCameraParameters::getStreamDimension(cam_stream_type_t streamType,
             }
             if ((dim.width * dim.height) >
                     (supportedWidth * supportedHeight)){
+                LOGH("capping picture size (%d x %d) to sensormax (%d x %d)",
+                        dim.width, dim.height, supportedWidth , supportedHeight);
                 dim.width = supportedWidth;
                 dim.height = supportedHeight;
             }
 
-            if (m_halPPType == CAM_HAL_PP_TYPE_BOKEH) {
-                 if (cam_type & MM_CAMERA_TYPE_MAIN) {
-                      dim.width = CAM_BOKEH_WIDE_WIDTH;
-                      dim.height = CAM_BOKEH_WIDE_HEIGHT;
-                 } else if (cam_type & MM_CAMERA_TYPE_AUX) {
-                     // Tele Camera
-                     dim.width = CAM_BOKEH_TELE_WIDTH;
-                     dim.height = CAM_BOKEH_TELE_HEIGHT;
-                 }
-                 LOGH("Bokeh : Hardcoding Snapshot ( %d x %d), cam_type: 0x%x",
-                        dim.width, dim.height, cam_type);
+        }
+        if (isDualCamera()) {
+            if ((dim.width * dim.height) > (ispMaxWidth * ispMaxHeight)) {
+                LOGH("capping picture size (%d x %d) to ispmax (%d x %d)",
+                        dim.width, dim.height, ispMaxWidth, ispMaxHeight);
+                dim.width = ispMaxWidth;
+                dim.height = ispMaxHeight;
             }
         }
         break;
@@ -11737,8 +11770,7 @@ uint32_t QCameraParameters::getJpegExifRotation() {
  *==========================================================================*/
 bool QCameraParameters::useJpegExifRotation() {
     char exifRotation[PROPERTY_VALUE_MAX];
-
-    property_get("persist.vendor.camera.exif.rotation", exifRotation, "off");
+    property_get("persist.camera.exif.rotation", exifRotation, "off");
 
     if (!strcmp(exifRotation, "on")) {
         return true;
@@ -12482,7 +12514,7 @@ int32_t QCameraParameters::setFrameSkip(enum msm_vfe_frame_skip_pattern pattern)
  *              none-zero failure code
  *==========================================================================*/
 int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
-        cam_dimension_t &sensor_dim, uint32_t cam_type)
+        cam_sensor_config_t &sensor_dim, uint32_t cam_type)
 {
     int32_t rc = NO_ERROR;
     cam_dimension_t pic_dim;
@@ -12574,9 +12606,11 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
     if (sensor_dim.width == 0 || sensor_dim.height == 0) {
         LOGW("Error getting RAW size. Setting to Capability value");
         if (getQuadraCfa()) {
-            sensor_dim = m_pCapability->quadra_cfa_dim[0];
+            sensor_dim.width = m_pCapability->quadra_cfa_dim[0].width;
+            sensor_dim.height = m_pCapability->quadra_cfa_dim[0].height;
         } else {
-            sensor_dim = m_pCapability->raw_dim[0];
+            sensor_dim.width = m_pCapability->raw_dim[0].width;
+            sensor_dim.height = m_pCapability->raw_dim[0].height;
         }
     }
     return rc;
@@ -12597,9 +12631,13 @@ int32_t QCameraParameters::getSensorOutputSize(cam_dimension_t max_dim,
 int32_t QCameraParameters::updateRAW(cam_dimension_t max_dim)
 {
     int32_t rc = NO_ERROR;
+    cam_sensor_config_t sensor_dim;
     cam_dimension_t raw_dim;
 
-    getSensorOutputSize(max_dim,raw_dim);
+    getSensorOutputSize(max_dim,sensor_dim);
+
+    raw_dim.width = sensor_dim.width;
+    raw_dim.height = sensor_dim.height;
     setRawSize(raw_dim);
     return rc;
 }
@@ -12990,6 +13028,14 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
     cam_sync_related_sensors_control_t syncControl = CAM_SYNC_RELATED_SENSORS_OFF;
     property_get("persist.vendor.camera.stats.test.2outs", prop, "0");
     sync_3a_mode = (atoi(prop) > 0) ? CAM_3A_SYNC_ALGO_CTRL : sync_3a_mode;
+    cam_3a_sync_mode_t sync_stats_common, af_sync;
+    sync_stats_common = af_sync = sync_3a_mode;
+
+    //Set AF sync mode to none, if either of the sensors doesn't support auto focus.
+    if (!isAutoFocusSupported(CAM_TYPE_MAIN) || !isAutoFocusSupported(CAM_TYPE_AUX))
+        af_sync = CAM_3A_SYNC_NONE;
+
+    cam_3a_sync_config_t sync_config_3a = {sync_stats_common, af_sync};
 
     //Check if dual camera by handle
     if (isDualCamera()) {
@@ -13011,8 +13057,9 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
         if (isBayerMono())
             bundle_info[num_cam].cam_role = CAM_ROLE_BAYER;
         else
-            bundle_info[num_cam].cam_role = CAM_ROLE_WIDE;
-        bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
+            bundle_info[num_cam].cam_role =
+                m_pFovControl->isMainCamFovWider() ? CAM_ROLE_WIDE : CAM_ROLE_TELE;
+        bundle_info[num_cam].sync_3a_config = sync_config_3a;
         m_pCamOpsTbl->ops->get_session_id(
                 get_aux_camera_handle(m_pCamOpsTbl->camera_handle), &sessionID);
         bundle_info[num_cam].related_sensor_session_id = sessionID;
@@ -13026,8 +13073,9 @@ int32_t QCameraParameters::setDualCamBundleInfo(bool enable_sync,
         if (isBayerMono())
             bundle_info[num_cam].cam_role = CAM_ROLE_MONO;
         else
-            bundle_info[num_cam].cam_role = CAM_ROLE_TELE;
-        bundle_info[num_cam].sync_3a_mode = sync_3a_mode;
+            bundle_info[num_cam].cam_role =
+                m_pFovControl->isMainCamFovWider() ? CAM_ROLE_TELE : CAM_ROLE_WIDE;
+        bundle_info[num_cam].sync_3a_config = sync_config_3a;
         m_pCamOpsTbl->ops->get_session_id(
                 get_main_camera_handle(m_pCamOpsTbl->camera_handle), &sessionID);
         bundle_info[num_cam].related_sensor_session_id = sessionID;
@@ -13394,7 +13442,7 @@ void QCameraParameters::setAuxParameters()
             if (isDCmAsymmetricSnapMode()) {
                 for (uint32_t i = 0; i < info->num_streams; i++) {
                     if (info->type[i] == CAM_STREAM_TYPE_SNAPSHOT) {
-                        LOGH("Bokeh: Getting stream dimesion for AUX Snapshot");
+                        LOGH("Getting stream dimesion for AUX Snapshot");
                         getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT,
                                 info->stream_sizes[i], CAM_TYPE_AUX);
                         break;
@@ -13404,7 +13452,7 @@ void QCameraParameters::setAuxParameters()
             if (isDCAsymmetricPrevMode()) {
                 for (uint32_t i = 0; i < info->num_streams; i++) {
                     if (info->type[i] == CAM_STREAM_TYPE_PREVIEW) {
-                        LOGH("Bokeh: Getting stream dimesion for AUX preview");
+                        LOGH("Getting stream dimesion for AUX preview");
                         getStreamDimension(CAM_STREAM_TYPE_PREVIEW,
                                 info->stream_sizes[i], CAM_TYPE_AUX);
                         break;
@@ -14189,7 +14237,8 @@ int32_t QCameraParameters::setISType()
     bool eisSupported = false, eis3Supported = false;
     for (size_t i = 0; i < m_pCapability->supported_is_types_cnt; i++) {
         if ((m_pCapability->supported_is_types[i] == IS_TYPE_EIS_2_0) ||
-                (m_pCapability->supported_is_types[i] == IS_TYPE_EIS_3_0)) {
+                (m_pCapability->supported_is_types[i] == IS_TYPE_EIS_3_0) ||
+                (m_pCapability->supported_is_types[i] == IS_TYPE_VENDOR_EIS)) {
             eisSupported = true;
         }
         if (m_pCapability->supported_is_types[i] == IS_TYPE_EIS_3_0) {
@@ -14277,7 +14326,8 @@ int32_t QCameraParameters::updateSnapshotPpMask(cam_stream_size_info_t &stream_c
 
 {
     int32_t rc = NO_ERROR;
-    cam_dimension_t sensor_dim, snap_dim;
+    cam_dimension_t snap_dim, raw_dim;
+    cam_sensor_config_t sensor_dim;
     cam_dimension_t max_dim = {0,0};
 
     // Find the Maximum dimension among all the streams
@@ -14291,8 +14341,10 @@ int32_t QCameraParameters::updateSnapshotPpMask(cam_stream_size_info_t &stream_c
     }
     LOGH("Max Dimension = %d X %d", max_dim.width, max_dim.height);
     getSensorOutputSize(max_dim,sensor_dim);
+    raw_dim.width = sensor_dim.width;
+    raw_dim.height = sensor_dim.height;
     getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, snap_dim);
-    setSmallJpegSize(sensor_dim,snap_dim);
+    setSmallJpegSize(raw_dim,snap_dim);
 
     //Picture ratio is greater than VFE downscale factor.So, link CPP
     if ( isSmallJpegSizeEnabled() ) {
@@ -14379,8 +14431,8 @@ uint8_t QCameraParameters::getMobicatMask()
  *==========================================================================*/
 bool QCameraParameters::sendStreamConfigInfo(cam_stream_size_info_t &stream_config_info) {
     int32_t rc = NO_ERROR;
-    cam_dimension_t sensor_dim_main = {0,0};
-    cam_dimension_t sensor_dim_aux  = {0,0};
+    cam_sensor_config_t sensor_dim_main = {0,0,0};
+    cam_sensor_config_t sensor_dim_aux  = {0,0,0};
 
     if (isDualCamera()) {
         // Get the sensor output dimensions for main and aux cameras.
@@ -15331,7 +15383,8 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
                 (stream_type == CAM_STREAM_TYPE_PREVIEW)) {
             needPAAF = true;
         } else if (stream_type == CAM_STREAM_TYPE_VIDEO) {
-            if (getVideoISType() != IS_TYPE_EIS_3_0) {
+            if ((getVideoISType() != IS_TYPE_EIS_3_0) &&
+                (getVideoISType() != IS_TYPE_VENDOR_EIS)) {
                 needPAAF = true;
             }
         }
@@ -15352,9 +15405,16 @@ int32_t QCameraParameters::updatePpFeatureMask(cam_stream_type_t stream_type) {
     }
 
     // Enable PPEISCORE for EIS 3.0
-    if ((stream_type == CAM_STREAM_TYPE_VIDEO) &&
-            (getVideoISType() == IS_TYPE_EIS_3_0)) {
+    if (stream_type == CAM_STREAM_TYPE_VIDEO) {
+        if (getVideoISType() == IS_TYPE_EIS_3_0)
         feature_mask |= CAM_QTI_FEATURE_PPEISCORE;
+        else if (getVideoISType() == IS_TYPE_VENDOR_EIS)
+          feature_mask |= CAM_QTI_FEATURE_VENDOR_EIS;
+    }
+
+    if ((stream_type == CAM_STREAM_TYPE_PREVIEW) &&
+            (getPreviewISType() == IS_TYPE_VENDOR_EIS)) {
+          feature_mask |= CAM_QTI_FEATURE_VENDOR_EIS;
     }
 
     if(isDualCamera()) {
@@ -16629,7 +16689,9 @@ bool QCameraParameters::needSnapshotPP()
     // Disable Snapshot Postprocessing if any of the below features are enabled
     if ((!maxPicSize  &&  (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH)) ||
             m_bLongshotEnabled || m_bRecordingHint ||
-            m_bRedEyeReduction || isAdvCamFeaturesEnabled() || getQuadraCfa()) {
+            m_bRedEyeReduction || isAdvCamFeaturesEnabled() || getQuadraCfa()
+            || (isBayerMono() && (getHalPPType() == CAM_HAL_PP_TYPE_NONE))
+            || ((getHalPPType() == CAM_HAL_PP_TYPE_BOKEH) && !m_bBokehSnapEnabled)) {
         return false;
     } else {
         return true;
@@ -16823,11 +16885,7 @@ int32_t QCameraParameters::setDCDeferCamera(cam_dual_camera_defer_cmd_t type)
             return rc;
         }
 
-        // Fix me: Do not defer camera for Bokeh Mode
-        if (getHalPPType() != CAM_HAL_PP_TYPE_BOKEH) {
-            sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO, MM_CAMERA_MAX_CAM_CNT,
-                    &defer_val[0]);
-        }
+        sendDualCamCmd(CAM_DUAL_CAMERA_DEFER_INFO, MM_CAMERA_MAX_CAM_CNT, &defer_val[0]);
     }
     return rc;
 }
@@ -16959,6 +17017,8 @@ int32_t QCameraParameters::setCameraControls(uint32_t state, bool bundleSnap,
 void QCameraParameters::setAsymmetricSnapMode()
 {
     int width, height, maxWidth, maxHeight;
+    int32_t ispMaxWidth = m_pCapability->single_isp_max_size.width;
+    int32_t ispMaxHeight = m_pCapability->single_isp_max_size.height;
 
     if (!isDualCamera()) {
         mAsymmetricSnapMode = false;
@@ -16981,6 +17041,12 @@ void QCameraParameters::setAsymmetricSnapMode()
         return;
     }
 
+    if ((maxWidth * maxHeight) > (ispMaxWidth * ispMaxHeight)) {
+        mAsymmetricSnapMode = true;
+        LOGD("Asymmetric Snap mode is set since the MAIN max res < ISP max res");
+        return;
+    }
+
     maxWidth = m_pCapability->aux_cam_cap->picture_sizes_tbl[0].width;
     maxHeight = m_pCapability->aux_cam_cap->picture_sizes_tbl[0].height;
     if ((maxWidth * maxHeight) < (width * height)) {
@@ -16988,6 +17054,13 @@ void QCameraParameters::setAsymmetricSnapMode()
         LOGD("Asymmetric Snap mode is set since the Aux max res < Picture res");
         return;
     }
+
+    if ((maxWidth * maxHeight) > (ispMaxWidth * ispMaxHeight)) {
+        mAsymmetricSnapMode = true;
+        LOGD("Asymmetric Snap mode is set since the Aux max res < ISP max res");
+        return;
+    }
+
     mAsymmetricSnapMode = false;
 }
 
@@ -17003,56 +17076,6 @@ bool QCameraParameters::isNoDisplayMode(uint32_t cam_type)
     }
     LOGH("bNoDisplayMode: %d cam_type: %d", bNoDisplayMode, cam_type);
     return bNoDisplayMode;
-}
-
-/*==========================================================================
-* FUNCTION   : isBayer
-*
-* DESCRIPTION: check whether sensor is bayer type or not
-*
-* PARAMETERS : cam_capability_t
-*
-* RETURN    : true or false
-*==========================================================================*/
-bool QCameraParameters::isBayer(cam_capability_t *caps)
-{
-    return (caps && (caps->color_arrangement == CAM_FILTER_ARRANGEMENT_RGGB ||
-            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_GRBG ||
-            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_GBRG ||
-            caps->color_arrangement == CAM_FILTER_ARRANGEMENT_BGGR));
-}
-
-/*===========================================================================
-* FUNCTION   : isMono
-*
-* DESCRIPTION: check whether sensor is mono or not
-*
-* PARAMETERS : cam_capability_t
-*
-* RETURN    : true or false
-*==========================================================================*/
-bool QCameraParameters::isMono(cam_capability_t *caps)
-{
-    return (caps && (caps->color_arrangement == CAM_FILTER_ARRANGEMENT_Y));
-}
-
-/*===========================================================================
-* FUNCTION   : getDualCameraConfig
-*
-* DESCRIPTION: get dual camera configuration whether B+M/W+T
-*
-* PARAMETERS : capabilities of main and aux cams
-*
-* RETURN    : dual_cam_type
-*==========================================================================*/
-dual_cam_type QCameraParameters::getDualCameraConfig(cam_capability_t *capsMainCam,
-        cam_capability_t *capsAuxCam)
-{
-    dual_cam_type type = DUAL_CAM_WIDE_TELE;
-    if (isBayer(capsMainCam) && isMono(capsAuxCam)) {
-        type = DUAL_CAM_BAYER_MONO;
-    }
-    return type;
 }
 
 /*===========================================================================
@@ -17089,6 +17112,53 @@ int32_t QCameraParameters::setAfFineTune(const char *FineTuneStr)
 bool QCameraParameters::needAnalysisStream()
 {
     return mCommon.needAnalysisStream();
+}
+
+/*===========================================================================
+ * FUNCTION   : getDepthMapSize
+ *
+ * DESCRIPTION: get depth map size from lib. Currently using hardcoded width/height to compute.
+ *                     If needed, can be extended easily for other pic sizes.
+ * PARAMETERS :
+ *   @width : (output) Depth map width
+ *   @height : (output) Depth map height
+ * RETURN     : none
+ *==========================================================================*/
+void QCameraParameters::getDepthMapSize(int &width, int &height)
+{
+    cam_dimension_t pic_dim;
+    getStreamDimension(CAM_STREAM_TYPE_SNAPSHOT, pic_dim);
+#ifdef ENABLE_QC_BOKEH
+    qrcp::getDepthMapSize(pic_dim.width, pic_dim.height, width, height);
+#else
+    (void)width;
+    (void)height;
+#endif //ENABLE_QC_BOKEH
+}
+
+void QCameraParameters::setBokehSnaphot(bool enable)
+{
+    if (m_bBokehSnapEnabled != enable) {
+        LOGD("%s bokeh snapshot", enable?"enabling":"disabling");
+        m_bBokehSnapEnabled = enable;
+    }
+}
+
+bool QCameraParameters::isDualCamAvailable()
+{
+    bool available = false;
+    for (uint8_t cameraId = 0; cameraId < get_num_of_cameras_to_expose(); cameraId++) {
+        if(is_dual_camera_by_idx(cameraId)) {
+            available = true;
+            break;
+        }
+    }
+    return available;
+}
+
+bool QCameraParameters::isAutoFocusSupported(uint32_t cam_type)
+{
+    return mCommon.isAutoFocusSupported(cam_type);
 }
 
 }; // namespace qcamera
