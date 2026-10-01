@@ -537,6 +537,7 @@ on property:persist.vendor.radio.multisim.config=dsds
     setprop ro.telephony.default_network "22,22"
     setprop persist.vendor.radio.block_allow_data 0
     enable ril-daemon2
+    enable vendor.qcrild2
 
 on property:persist.vendor.radio.multisim.config=ss
     setprop ro.telephony.default_network 22
