@@ -294,6 +294,21 @@
     <ctl name="SLIM_1_TX Channels" value="One" />
     <ctl name="SLIM RX0 MUX" value="ZERO" />
     <ctl name="SLIM RX3 MUX" value="ZERO" />
+    <!-- headphones on SLIMBUS_6_RX (AIF4_PB), see the "headphones" path -->
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia1" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia3" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia4" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia5" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia7" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia10" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia11" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia12" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia13" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia14" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia15" value="0" />
+    <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia16" value="0" />
+    <ctl name="SLIM RX2 MUX" value="ZERO" />
+    <ctl name="SLIM_6_RX Channels" value="One" />
     <ctl name="SLIM RX4 MUX" value="ZERO" />
     <ctl name="EAR PA Gain" value="G_6_DB" />
     <ctl name="SpkrLeft COMP Switch" value="0" />
@@ -667,7 +682,7 @@
     </path>
 
     <path name="deep-buffer-playback headphones">
-        <path name="deep-buffer-playback" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia1" value="1" />
     </path>
 
     <path name="deep-buffer-playback incall-music">
@@ -751,7 +766,7 @@
     </path>
 
     <path name="low-latency-playback headphones">
-        <path name="low-latency-playback" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia5" value="1" />
     </path>
 
     <path name="audio-ull-playback">
@@ -759,12 +774,11 @@
     </path>
 
     <path name="audio-ull-playback headphones">
-      <path name="audio-ull-playback" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia3" value="1" />
     </path>
 
     <path name="audio-ull-playback speaker-and-headphones">
         <path name="audio-ull-playback" />
-        <path name="audio-ull-playback headphones" />
     </path>
 
     <path name="audio-ull-playback hdmi">
@@ -833,7 +847,7 @@
     </path>
 
     <path name="compress-offload-playback headphones">
-        <path name="compress-offload-playback" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia4" value="1" />
     </path>
 
     <path name="compress-offload-playback headphones-44.1">
@@ -877,7 +891,7 @@
     </path>
 
     <path name="compress-offload-playback2 headphones">
-        <path name="compress-offload-playback2" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia7" value="1" />
     </path>
 
     <path name="compress-offload-playback2 headphones-44.1">
@@ -921,7 +935,7 @@
     </path>
 
     <path name="compress-offload-playback3 headphones">
-        <path name="compress-offload-playback3" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia10" value="1" />
     </path>
 
     <path name="compress-offload-playback3 headphones-44.1">
@@ -965,7 +979,7 @@
     </path>
 
     <path name="compress-offload-playback4 headphones">
-        <path name="compress-offload-playback4" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia11" value="1" />
     </path>
 
     <path name="compress-offload-playback4 headphones-44.1">
@@ -1009,7 +1023,7 @@
     </path>
 
     <path name="compress-offload-playback5 headphones">
-        <path name="compress-offload-playback5" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia12" value="1" />
     </path>
 
     <path name="compress-offload-playback5 headphones-44.1">
@@ -1053,7 +1067,7 @@
     </path>
 
     <path name="compress-offload-playback6 headphones">
-        <path name="compress-offload-playback6" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia13" value="1" />
     </path>
 
     <path name="compress-offload-playback6 headphones-44.1">
@@ -1097,7 +1111,7 @@
     </path>
 
     <path name="compress-offload-playback7 headphones">
-        <path name="compress-offload-playback7" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia14" value="1" />
     </path>
 
     <path name="compress-offload-playback7 headphones-44.1">
@@ -1141,7 +1155,7 @@
     </path>
 
     <path name="compress-offload-playback8 headphones">
-        <path name="compress-offload-playback8" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia15" value="1" />
     </path>
 
     <path name="compress-offload-playback8 headphones-44.1">
@@ -1185,7 +1199,7 @@
     </path>
 
     <path name="compress-offload-playback9 headphones">
-        <path name="compress-offload-playback9" />
+        <ctl name="SLIMBUS_6_RX Audio Mixer MultiMedia16" value="1" />
     </path>
 
     <path name="compress-offload-playback9 headphones-44.1">
@@ -2420,7 +2434,26 @@
         <ctl name="ANC EAR Enable Switch" value="1" />
     </path>
 
+    <!--
+      Music on headphones uses its own backend, SLIMBUS_6_RX (AIF4_PB ->
+      RX2/RX3 -> the INT1/INT2 mix inputs), as in the CAF msm8996 layout.
+      The HAL configures the headphone backend through the SLIM_6_RX
+      Format/SampleRate controls, so on SLIM_0_RX hi-res streams stayed
+      at 48 kHz/16 bit.
+    -->
     <path name="headphones">
+        <ctl name="SLIM RX2 MUX" value="AIF4_PB" />
+        <ctl name="SLIM RX3 MUX" value="AIF4_PB" />
+        <ctl name="SLIM_6_RX Channels" value="Two" />
+        <ctl name="RX INT1_2 MUX" value="RX2" />
+        <ctl name="RX INT2_2 MUX" value="RX3" />
+        <ctl name="RX INT1 DEM MUX" value="CLSH_DSM_OUT" />
+        <ctl name="RX INT2 DEM MUX" value="CLSH_DSM_OUT" />
+        <ctl name="RX1 Mix Digital Volume" value="76" />
+        <ctl name="RX2 Mix Digital Volume" value="76" />
+    </path>
+
+    <path name="headphones-slim0">
         <ctl name="SLIM RX0 MUX" value="AIF_MIX1_PB" />
         <ctl name="SLIM RX1 MUX" value="AIF_MIX1_PB" />
         <ctl name="SLIM_0_RX Channels" value="Two" />
@@ -2538,7 +2571,7 @@
     </path>
 
     <path name="voice-headphones">
-        <path name="headphones" />
+        <path name="headphones-slim0" />
         <ctl name="RX1 Digital Volume" value="76" />
         <ctl name="RX2 Digital Volume" value="76" />
     </path>
@@ -2590,7 +2623,7 @@
     </path>
 
     <path name="speaker-and-headphones-liquid">
-        <path name="headphones" />
+        <path name="headphones-slim0" />
         <ctl name="RX INT7_1 MIX1 INP0" value="RX0" />
         <ctl name="RX INT8_1 MIX1 INP0" value="RX1" />
         <ctl name="SpkrLeft COMP Switch" value="1" />
