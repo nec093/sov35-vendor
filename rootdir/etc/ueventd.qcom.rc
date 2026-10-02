@@ -281,7 +281,14 @@
 /dev/kmsg                 0620   root       system
 
 # TA
+# Newer ueventd only matches a node's own by-name links, and
+# "bootdevice" is a link to the platform directory, not one of them: list
+# those links too, or the TA stays root-only and tad_static (and
+# everything taimport derives from the TA: BT address, Wi-Fi MAC and
+# calibration) fails.
 /dev/block/bootdevice/by-name/TA 0770   oem_2997     oem_2997
+/dev/block/platform/soc/7464900.sdhci/by-name/TA 0770   oem_2997     oem_2997
+/dev/block/by-name/TA 0770   oem_2997     oem_2997
 
 # NFC
 /sys/devices/soc/75b6000.i2c/i2c-8/8-0028  init_deinit 0200    nfc     nfc

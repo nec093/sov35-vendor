@@ -86,6 +86,12 @@ on fs
     write /dev/ipa 1
 
 on late-fs
+    # Newer GSIs set traced.relay_producer_port to a vsock address (for
+    # AVF guests). This kernel has no vsock transport, so traced exits at
+    # once, and apexd then takes it for a crashing updatable process and
+    # tries to revert APEXes. Keep traced on its unix sockets only.
+    setprop traced.relay_producer_port ""
+
     # boot time fs tune
     write /sys/block/sda/queue/iostats 0
     write /sys/block/sda/queue/scheduler cfq
